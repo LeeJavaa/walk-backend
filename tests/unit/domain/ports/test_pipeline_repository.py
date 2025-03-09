@@ -44,7 +44,6 @@ class TestPipelineRepository:
             "mongo",
             "database",
             "sql",
-            "storage",
             "filesystem",
             "file system",
         ]
