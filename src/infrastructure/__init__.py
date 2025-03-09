@@ -1,0 +1,1 @@
+"""Infrastructure layer implementing the interfaces defined in the domain."""

@@ -1,0 +1,1 @@
+"""Domain entities representing the core business objects."""

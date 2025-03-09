@@ -1,0 +1,1 @@
+"""Interface definitions for the domain to communicate with external systems."""
