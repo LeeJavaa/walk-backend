@@ -60,7 +60,8 @@ class TestCodeArtifact:
             )
 
         # Test invalid artifact type
-        with pytest.raises(ValueError):
+        with pytest.raises(CodeArtifactValidationError,
+                           match="Invalid artifact type. Expected one of:"):
             CodeArtifact(
                 id=str(uuid4()),
                 task_id=str(uuid4()),

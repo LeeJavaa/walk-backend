@@ -62,7 +62,8 @@ class TestContextItem:
             )
 
         # Test invalid content type
-        with pytest.raises(ValueError):
+        with pytest.raises(ContextItemValidationError,
+                           match="Invalid content type. Expected one of:"):
             ContextItem(
                 id=str(uuid4()),
                 source="test_file.txt",
