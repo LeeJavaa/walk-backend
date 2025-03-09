@@ -70,6 +70,8 @@ class TestPipelineManagementUseCases:
     def test_create_pipeline(self, pipeline_repository_mock, sample_task):
         """Test creating a pipeline (U-PS-2)."""
         # Arrange
+        pipeline_repository_mock.save_pipeline_state.side_effect = lambda state: state
+
         use_case = CreatePipelineUseCase(
             pipeline_repository=pipeline_repository_mock)
 
@@ -92,6 +94,9 @@ class TestPipelineManagementUseCases:
                                     sample_pipeline_state, mock_pipeline_stage):
         """Test executing a pipeline stage (U-PS-1)."""
         # Arrange
+        pipeline_repository_mock.save_pipeline_state.side_effect = lambda \
+            state: state
+
         use_case = ExecutePipelineStageUseCase(
             pipeline_repository=pipeline_repository_mock)
 
@@ -124,6 +129,9 @@ class TestPipelineManagementUseCases:
                                sample_pipeline_state):
         """Test rolling back a pipeline to a checkpoint (U-PS-3)."""
         # Arrange
+        pipeline_repository_mock.save_pipeline_state.side_effect = lambda \
+            state: state
+
         use_case = RollbackPipelineUseCase(
             pipeline_repository=pipeline_repository_mock)
 

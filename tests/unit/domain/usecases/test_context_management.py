@@ -63,6 +63,9 @@ class TestContextManagementUseCases:
                                         llm_provider_mock, file_system_mock):
         """Test adding context from a file path (U-CS-3)."""
         # Arrange
+        context_repository_mock.add.side_effect = lambda \
+            context_item: context_item
+
         use_case = AddContextUseCase(
             context_repository=context_repository_mock,
             llm_provider=llm_provider_mock,
@@ -86,6 +89,9 @@ class TestContextManagementUseCases:
                                       llm_provider_mock):
         """Test adding context from content (U-CS-3)."""
         # Arrange
+        context_repository_mock.add.side_effect = lambda \
+            context_item: context_item
+
         use_case = AddContextUseCase(
             context_repository=context_repository_mock,
             llm_provider=llm_provider_mock,

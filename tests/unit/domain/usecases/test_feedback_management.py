@@ -41,6 +41,9 @@ class TestFeedbackManagementUseCases:
                              sample_pipeline_state):
         """Test submitting feedback (U-FS-1)."""
         # Arrange
+        pipeline_repository_mock.save_pipeline_state.side_effect = lambda \
+            state: state
+
         use_case = SubmitFeedbackUseCase(
             pipeline_repository=pipeline_repository_mock)
         state_id = "state-id"
@@ -93,6 +96,9 @@ class TestFeedbackManagementUseCases:
                                   sample_pipeline_state):
         """Test incorporating feedback into the pipeline (U-FS-3)."""
         # Arrange
+        pipeline_repository_mock.save_pipeline_state.side_effect = lambda \
+                state: state
+
         use_case = IncorporateFeedbackUseCase(
             pipeline_repository=pipeline_repository_mock)
         state_id = "state-id"
@@ -138,6 +144,9 @@ class TestFeedbackManagementUseCases:
                                                       sample_pipeline_state):
         """Test incorporating feedback with prioritization (U-FS-3)."""
         # Arrange
+        pipeline_repository_mock.save_pipeline_state.side_effect = lambda \
+                state: state
+
         use_case = IncorporateFeedbackUseCase(
             pipeline_repository=pipeline_repository_mock)
         state_id = "state-id"
