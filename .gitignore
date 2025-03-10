@@ -6,3 +6,11 @@
 /walk.egg-info/top_level.txt
 /.coverage
 /coverage.xml
+/.idea/.gitignore
+/.idea/material_theme_project_new.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/vcs.xml
+/.idea/walk-backend.iml
