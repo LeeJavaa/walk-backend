@@ -18,21 +18,46 @@ class TestMongoContextRepository:
     def mock_collection(self):
         """Mock MongoDB collection for testing."""
         collection = AsyncMock()
+
+        # For find_one
         collection.find_one.return_value = None
         collection.insert_one.return_value = MagicMock(inserted_id=ObjectId())
-        collection.find.return_value.to_list.return_value = []
+
+        # For find - make it return a regular mock, not a coroutine
+        cursor_mock = MagicMock()  # Use MagicMock not AsyncMock for the cursor
+        cursor_mock.to_list = AsyncMock(
+            return_value=[])  # Only this method is async
+        collection.find = MagicMock(
+            return_value=cursor_mock)  # find itself is not async
+
+        # Other operations
         collection.update_one.return_value = MagicMock(modified_count=1)
         collection.delete_one.return_value = MagicMock(deleted_count=1)
+
         return collection
 
     @pytest.fixture
     def mock_vector_collection(self):
         """Mock MongoDB vector collection for testing."""
         collection = AsyncMock()
-        collection.find.return_value.to_list.return_value = []
+
+        # For find - make it return a regular mock, not a coroutine
+        cursor_mock = MagicMock()  # Use MagicMock not AsyncMock for the cursor
+        cursor_mock.to_list = AsyncMock(
+            return_value=[])  # Only this method is async
+        collection.find = MagicMock(
+            return_value=cursor_mock)  # find itself is not async
+
+        # Same for aggregate
+        agg_cursor_mock = MagicMock()
+        agg_cursor_mock.to_list =  AsyncMock(return_value=[])
+        collection.aggregate = MagicMock(return_value=agg_cursor_mock)
+
+        # Other operations
         collection.insert_one.return_value = MagicMock(inserted_id=ObjectId())
         collection.update_one.return_value = MagicMock(modified_count=1)
         collection.delete_one.return_value = MagicMock(deleted_count=1)
+
         return collection
 
     @pytest.fixture

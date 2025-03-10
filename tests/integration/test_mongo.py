@@ -1,6 +1,10 @@
+import asyncio
+import os
 import pytest
 from pymongo.errors import ConnectionFailure
 import uuid
+
+from dotenv import load_dotenv
 
 from src.domain.entities.context_item import ContextItem, ContentType
 from src.domain.entities.task import Task, TaskStatus
@@ -14,14 +18,21 @@ from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
 # Mark the whole file as integration tests
 pytestmark = pytest.mark.integration
 
+# Load environment variables from .env file
+load_dotenv()
+
+# Get MongoDB connection details from environment variables with fallbacks
+MONGODB_URI = os.getenv("MONGODB_TEST_URI", "mongodb://localhost:27017")
+TEST_DB_NAME = os.getenv("MONGODB_TEST_DB_NAME", "walk_test")
+
 
 @pytest.fixture(scope="module")
 async def mongodb_connection():
     """Create a MongoDB connection for testing."""
     # Use a separate test database
     connection = MongoDBConnection(
-        connection_string="mongodb://localhost:27017",
-        db_name="walk_test"
+        connection_string=MONGODB_URI,
+        db_name=TEST_DB_NAME,
     )
 
     try:
@@ -32,7 +43,7 @@ async def mongodb_connection():
         yield connection
 
         # Clean up after tests
-        db = connection.client["walk_test"]
+        db = connection.client[TEST_DB_NAME]
         collections = await db.list_collection_names()
         for collection in collections:
             await db.drop_collection(collection)
@@ -44,7 +55,7 @@ async def mongodb_connection():
 
 
 @pytest.fixture
-async def context_repository(mongodb_connection):
+async def context_repository(mongodb_connection, request):
     """Create a MongoContextRepository for testing."""
     repo = MongoContextRepository(
         connection=mongodb_connection,
@@ -52,18 +63,20 @@ async def context_repository(mongodb_connection):
         vector_collection_name="context_vectors_test"
     )
 
-    # Cleanup after test
-    yield repo
+    async def cleanup():
+        # Cleanup after test
+        await mongodb_connection.client[mongodb_connection.db_name].drop_collection(
+            "context_items_test")
+        await mongodb_connection.client[mongodb_connection.db_name].drop_collection(
+            "context_vectors_test")
 
-    # Drop collections
-    await mongodb_connection.client["walk_test"].drop_collection(
-        "context_items_test")
-    await mongodb_connection.client["walk_test"].drop_collection(
-        "context_vectors_test")
+    request.addfinalizer(lambda: asyncio.run(cleanup()))
+
+    return repo  # Return directly, not yield
 
 
 @pytest.fixture
-async def pipeline_repository(mongodb_connection):
+async def pipeline_repository(mongodb_connection, request):
     """Create a MongoPipelineRepository for testing."""
     repo = MongoPipelineRepository(
         connection=mongodb_connection,
@@ -71,13 +84,17 @@ async def pipeline_repository(mongodb_connection):
         states_collection_name="pipeline_states_test"
     )
 
-    # Cleanup after test
-    yield repo
+    async def cleanup():
+        # Drop collections
+        await mongodb_connection.client[
+            mongodb_connection.db_name].drop_collection("tasks_test")
+        await mongodb_connection.client[
+            mongodb_connection.db_name].drop_collection(
+            "pipeline_states_test")
 
-    # Drop collections
-    await mongodb_connection.client["walk_test"].drop_collection("tasks_test")
-    await mongodb_connection.client["walk_test"].drop_collection(
-        "pipeline_states_test")
+    request.addfinalizer(lambda: asyncio.run(cleanup()))
+
+    return repo
 
 
 @pytest.fixture
@@ -330,9 +347,7 @@ async def test_error_handling(mongodb_connection):
         await invalid_repo.list()
 
 
-@pytest.mark.asyncio
-async def test_repository_hexagonal_architecture_compliance(context_repository,
-                                                            pipeline_repository):
+async def test_repository_hexagonal_architecture_compliance():
     """Test repositories comply with hexagonal architecture (I-HA-1)."""
     # Verify that repositories implement the corresponding interfaces
     from src.domain.ports.context_repository import \
@@ -341,17 +356,17 @@ async def test_repository_hexagonal_architecture_compliance(context_repository,
         PipelineRepository as PipelineRepositoryInterface
 
     # Check that our implementations satisfy the interface contracts
-    assert isinstance(context_repository, ContextRepositoryInterface)
-    assert isinstance(pipeline_repository, PipelineRepositoryInterface)
+    assert isinstance(MongoContextRepository, ContextRepositoryInterface)
+    assert isinstance(MongoPipelineRepository, PipelineRepositoryInterface)
 
     # Verify all required methods are implemented
     for method_name in ["add", "get_by_id", "update", "delete", "list",
                         "search_by_vector"]:
-        assert hasattr(context_repository, method_name)
-        assert callable(getattr(context_repository, method_name))
+        assert hasattr(MongoContextRepository, method_name)
+        assert callable(getattr(MongoContextRepository, method_name))
 
     for method_name in ["save_task", "get_task", "list_tasks",
                         "save_pipeline_state",
                         "get_pipeline_state", "get_latest_pipeline_state"]:
-        assert hasattr(pipeline_repository, method_name)
-        assert callable(getattr(pipeline_repository, method_name))
+        assert hasattr(MongoPipelineRepository, method_name)
+        assert callable(getattr(MongoPipelineRepository, method_name))

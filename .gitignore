@@ -14,3 +14,7 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/vcs.xml
 /.idea/walk-backend.iml
+/tests/integration/.coverage
+/tests/integration/coverage.xml
+
+.env
