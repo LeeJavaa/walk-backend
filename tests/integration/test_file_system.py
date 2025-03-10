@@ -84,10 +84,10 @@ class TestFileSystemAdapterIntegration:
         files = file_system_adapter.list_files(temp_dir)
 
         # Assert
-        assert len(files) == len(test_files) + 1  # +1 for the subdirectory
+        assert len(files) == len(test_files)
         for filename in test_files:
             assert os.path.join(temp_dir, filename) in files
-        assert subdir in files
+        assert subdir not in files
 
     def test_list_files_with_pattern(self, file_system_adapter, temp_dir):
         """Test listing files with a pattern (I-CS-4)."""

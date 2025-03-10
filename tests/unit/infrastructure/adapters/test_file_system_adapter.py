@@ -67,7 +67,9 @@ class TestFileSystemAdapter:
         test_path = "/path/to/write_file.txt"
 
         # Act
-        with patch("builtins.open", mock_file):
+        with patch("builtins.open", mock_file), \
+                patch("os.path.exists", return_value=True), \
+                patch("os.makedirs"):
             result = file_system_adapter.write_file(test_path, test_content)
 
         # Assert
@@ -83,7 +85,9 @@ class TestFileSystemAdapter:
         test_path = "/path/to/write_file.bin"
 
         # Act
-        with patch("builtins.open", mock_file):
+        with patch("builtins.open", mock_file), \
+                patch("os.path.exists", return_value=True), \
+                patch("os.makedirs"):
             result = file_system_adapter.write_file(test_path, test_content,
                                                     binary=True)
 
@@ -112,13 +116,14 @@ class TestFileSystemAdapter:
             "/path/to/directory/file2.py",
             "/path/to/directory/file3.md"
         ]
+        file_list = ["file1.txt", "file2.py", "file3.md"]
 
         # Act
-        with patch("os.path.isdir", return_value=True):
-            with patch("os.walk", return_value=[
-                (test_dir, [], ["file1.txt", "file2.py", "file3.md"])
-            ]):
-                files = file_system_adapter.list_files(test_dir)
+        with patch("os.path.isdir", return_value=True), \
+                patch("os.listdir", return_value=file_list), \
+                patch("os.path.isfile",
+                      return_value=True):  # Mock these additional functions
+            files = file_system_adapter.list_files(test_dir)
 
         # Assert
         assert sorted(files) == sorted(expected_files)
@@ -127,23 +132,18 @@ class TestFileSystemAdapter:
         """Test listing files with a pattern."""
         # Arrange
         test_dir = "/path/to/directory"
-        all_files = [
-            "/path/to/directory/file1.txt",
-            "/path/to/directory/file2.py",
-            "/path/to/directory/file3.md",
-            "/path/to/directory/test.py"
-        ]
+        file_list = ["file1.txt", "file2.py", "file3.md", "test.py"]
         expected_files = [
             "/path/to/directory/file2.py",
             "/path/to/directory/test.py"
         ]
 
         # Act
-        with patch("os.path.isdir", return_value=True):
-            with patch("os.walk", return_value=[
-                (test_dir, [], ["file1.txt", "file2.py", "file3.md", "test.py"])
-            ]):
-                files = file_system_adapter.list_files(test_dir, pattern="*.py")
+        with patch("os.path.isdir", return_value=True), \
+                patch("os.listdir", return_value=file_list), \
+                patch("os.path.isfile",
+                      return_value=True):  # Mock these additional functions
+            files = file_system_adapter.list_files(test_dir, pattern="*.py")
 
         # Assert
         assert sorted(files) == sorted(expected_files)

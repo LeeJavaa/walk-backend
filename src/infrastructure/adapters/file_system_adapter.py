@@ -78,20 +78,6 @@ class FileSystemAdapter(FileSystem):
 
     def list_files(self, directory: str, pattern: Optional[str] = None,
                    recursive: bool = False) -> List[str]:
-        """
-        List files in a directory, optionally filtered by a pattern.
-
-        Args:
-            directory: Directory to list files from
-            pattern: Optional glob pattern to filter files by (e.g., "*.py")
-            recursive: Whether to search subdirectories recursively
-
-        Returns:
-            List of file paths matching the criteria
-
-        Raises:
-            ValueError: If the directory does not exist
-        """
         if not os.path.isdir(directory):
             self.logger.error(f"Directory not found: {directory}")
             raise ValueError(f"Directory not found: {directory}")
@@ -101,13 +87,8 @@ class FileSystemAdapter(FileSystem):
 
             if recursive:
                 # Walk through all subdirectories
-                for root, dirs, files in os.walk(directory):
-                    # Add subdirectories to result
-                    for dir_name in dirs:
-                        dir_path = os.path.join(root, dir_name)
-                        result.append(dir_path)
-
-                    # Add files to result, filtered by pattern if provided
+                for root, _, files in os.walk(directory):
+                    # Only add files to result, filtered by pattern if provided
                     for filename in files:
                         if pattern is None or fnmatch.fnmatch(filename,
                                                               pattern):
@@ -118,11 +99,9 @@ class FileSystemAdapter(FileSystem):
                 for item in os.listdir(directory):
                     item_path = os.path.join(directory, item)
 
-                    # If it's a directory, add it to the result
-                    if os.path.isdir(item_path):
-                        result.append(item_path)
-                    # If it's a file and matches the pattern, add it to the result
-                    elif pattern is None or fnmatch.fnmatch(item, pattern):
+                    # Only include files, not directories
+                    if os.path.isfile(item_path) and (
+                            pattern is None or fnmatch.fnmatch(item, pattern)):
                         result.append(item_path)
 
             return result
