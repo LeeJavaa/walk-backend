@@ -1,1 +1,23 @@
 """Adapters for external services like OpenAI."""
+
+from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
+from src.infrastructure.adapters.openai_adapter import OpenAIAdapter
+from src.infrastructure.adapters.prompt_utils import (
+    create_requirements_gathering_prompt,
+    create_knowledge_gathering_prompt,
+    create_implementation_planning_prompt,
+    create_implementation_writing_prompt,
+    create_review_prompt,
+    format_context_items_for_prompt
+)
+
+__all__ = [
+    "MongoDBConnection",
+    "OpenAIAdapter",
+    "create_requirements_gathering_prompt",
+    "create_knowledge_gathering_prompt",
+    "create_implementation_planning_prompt",
+    "create_implementation_writing_prompt",
+    "create_review_prompt",
+    "format_context_items_for_prompt"
+]
