@@ -72,7 +72,7 @@ class MongoDBConnection:
         Raises:
             ValueError: If not connected or invalid collection name
         """
-        if not self.db:
+        if self.db is None:
             raise ValueError("Not connected to MongoDB")
 
         if not collection_name:

@@ -42,7 +42,7 @@ class MongoPipelineRepository(PipelineRepository):
         if self.connection and not self.connection.client:
             await self.connection.connect()
 
-        if not self._tasks_collection or not self._states_collection:
+        if self._tasks_collection is None or self._states_collection is None:
             if self.connection:
                 self._tasks_collection = self.connection.get_collection(
                     self.tasks_collection_name)

@@ -41,7 +41,7 @@ class MongoContextRepository(ContextRepository):
         if self.connection and not self.connection.client:
             await self.connection.connect()
 
-        if not self._collection or not self._vector_collection:
+        if self._collection is None or self._vector_collection is None:
             if self.connection:
                 self._collection = self.connection.get_collection(
                     self.collection_name)
