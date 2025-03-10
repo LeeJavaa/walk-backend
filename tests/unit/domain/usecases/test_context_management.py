@@ -6,7 +6,6 @@ from src.domain.entities.context_item import ContextItem, ContentType
 from src.domain.ports.context_repository import ContextRepository
 from src.domain.ports.llm_provider import LLMProvider
 from src.domain.ports.file_system import FileSystem
-from src.domain.ports.vector_store import VectorStore
 from src.domain.usecases.context_management import (
     AddContextUseCase,
     RemoveContextUseCase,
@@ -40,12 +39,6 @@ class TestContextManagementUseCases:
         file_system.read_file.return_value = "def test_function():\n    return 'Hello, World!'"
         file_system.file_exists.return_value = True
         return file_system
-
-    @pytest.fixture
-    def vector_store_mock(self):
-        """Mock for the vector store."""
-        vector_store = Mock(spec=VectorStore)
-        return vector_store
 
     @pytest.fixture
     def sample_context_item(self):

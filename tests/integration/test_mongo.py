@@ -1,11 +1,5 @@
 import pytest
-import motor.motor_asyncio
 from pymongo.errors import ConnectionFailure
-import asyncio
-from bson import ObjectId
-from datetime import datetime
-import time
-from typing import Dict, Any, List
 import uuid
 
 from src.domain.entities.context_item import ContextItem, ContentType
