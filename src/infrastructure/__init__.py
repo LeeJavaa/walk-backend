@@ -7,6 +7,7 @@ from src.infrastructure.repositories.mongo_pipeline_repository import MongoPipel
 # Expose adapters
 from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
 from src.infrastructure.adapters.openai_adapter import OpenAIAdapter
+from src.infrastructure.adapters.file_system_adapter import FileSystemAdapter
 from src.infrastructure.adapters.prompt_utils import (
     create_requirements_gathering_prompt,
     create_knowledge_gathering_prompt,
@@ -21,6 +22,7 @@ __all__ = [
     "MongoPipelineRepository",
     "MongoDBConnection",
     "OpenAIAdapter",
+    "FileSystemAdapter",
     "create_requirements_gathering_prompt",
     "create_knowledge_gathering_prompt",
     "create_implementation_planning_prompt",

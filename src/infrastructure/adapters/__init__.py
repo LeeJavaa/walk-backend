@@ -2,6 +2,7 @@
 
 from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
 from src.infrastructure.adapters.openai_adapter import OpenAIAdapter
+from src.infrastructure.adapters.file_system_adapter import FileSystemAdapter
 from src.infrastructure.adapters.prompt_utils import (
     create_requirements_gathering_prompt,
     create_knowledge_gathering_prompt,
@@ -14,6 +15,7 @@ from src.infrastructure.adapters.prompt_utils import (
 __all__ = [
     "MongoDBConnection",
     "OpenAIAdapter",
+    "FileSystemAdapter",
     "create_requirements_gathering_prompt",
     "create_knowledge_gathering_prompt",
     "create_implementation_planning_prompt",
