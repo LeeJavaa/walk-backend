@@ -3,6 +3,8 @@ import os
 from unittest.mock import patch, Mock
 from dotenv import load_dotenv
 
+import openai
+
 from src.infrastructure.adapters.openai_adapter import OpenAIAdapter
 from src.application.services.embedding_service import EmbeddingService
 from src.application.services.rag_service import RAGService
@@ -24,6 +26,7 @@ class TestOpenAIAdapterIntegration:
     @pytest.fixture
     def openai_adapter(self):
         """Create an OpenAI adapter for testing, using mock if no API key."""
+        print(API_KEY)
         if API_KEY:
             return OpenAIAdapter(
                 api_key=API_KEY,
@@ -65,7 +68,7 @@ class TestOpenAIAdapterIntegration:
     def test_generate_text_mock(self):
         """Test generating text with mocked OpenAI client for CI (I-LLM-1)."""
         # Arrange
-        with patch("openai.OpenAI") as mock_openai:
+        with patch("openai.Client") as mock_openai:
             # Configure mock
             mock_client = Mock()
             mock_openai.return_value = mock_client
@@ -88,16 +91,36 @@ class TestOpenAIAdapterIntegration:
     def test_rate_limit_retry_mechanism(self):
         """Test rate limit retry mechanism (I-LLM-2)."""
         # Arrange
-        with patch("openai.OpenAI") as mock_openai:
+        with patch("openai.Client") as mock_openai:
             # Configure mock
             mock_client = Mock()
             mock_openai.return_value = mock_client
 
-            # Create a rate limit error for the first call, then succeed
+            # Create a proper mock response and body for the error
+            mock_response = Mock()
+            mock_response.status_code = 429
+            mock_response.headers = {"retry-after": "2"}
+
+            mock_body = {
+                "error": {
+                    "message": "Rate limit exceeded",
+                    "type": "rate_limit_exceeded"
+                }
+            }
+
+            # Create the rate limit error with required parameters
+            rate_limit_error = openai.RateLimitError(
+                message="Rate limit exceeded",
+                response=mock_response,
+                body=mock_body
+            )
+
+            # Set up side effects
             mock_client.chat.completions.create.side_effect = [
-                Exception("Rate limit exceeded"),
+                rate_limit_error,  # First call fails with rate limit
                 Mock(
                     choices=[Mock(message=Mock(content="Success after retry"))])
+                # Second call succeeds
             ]
 
             adapter = OpenAIAdapter(api_key="mock-key", model="gpt-4")
@@ -112,7 +135,7 @@ class TestOpenAIAdapterIntegration:
     def test_context_window_management(self):
         """Test context window management with large inputs (I-LLM-3)."""
         # Arrange
-        with patch("openai.OpenAI") as mock_openai:
+        with patch("openai.Client") as mock_openai:
             # Configure mock
             mock_client = Mock()
             mock_openai.return_value = mock_client
@@ -151,17 +174,11 @@ class TestEmbeddingServiceIntegration:
     @pytest.fixture
     def embedding_service(self):
         """Create an Embedding Service with mock OpenAI adapter."""
-        with patch("openai.OpenAI") as mock_openai:
-            # Configure mock
-            mock_client = Mock()
-            mock_openai.return_value = mock_client
+        # Create a real adapter but mock its generate_embedding method
+        adapter = Mock(spec=OpenAIAdapter)
+        adapter.generate_embedding.return_value = [0.1, 0.2, 0.3, 0.4, 0.5]
 
-            mock_response = Mock()
-            mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3, 0.4, 0.5])]
-            mock_client.embeddings.create.return_value = mock_response
-
-            adapter = OpenAIAdapter(api_key="mock-key", model="gpt-4")
-            return EmbeddingService(llm_provider=adapter)
+        return EmbeddingService(llm_provider=adapter)
 
     def test_chunking_large_text(self, embedding_service):
         """Test embedding service handles large text properly (I-LLM-3)."""
@@ -178,9 +195,11 @@ class TestEmbeddingServiceIntegration:
         assert embedding == [0.1, 0.2, 0.3, 0.4, 0.5]
 
         # The provider should have been called with a truncated version
-        provider = embedding_service.llm_provider
-        args = provider.generate_embedding.call_args[0]
-        assert len(args[0]) <= embedding_service.MAX_TEXT_LENGTH
+        embedding_service.llm_provider.generate_embedding.assert_called()
+        # Get the actual text passed to generate_embedding
+        called_text = \
+        embedding_service.llm_provider.generate_embedding.call_args[0][0]
+        assert len(called_text) <= embedding_service.MAX_TEXT_LENGTH
 
     def test_handling_multiple_context_items(self, embedding_service):
         """Test embedding service handles multiple context items (I-LLM-1)."""
@@ -289,9 +308,8 @@ class TestRAGServiceIntegration:
     def test_live_rag_with_openai(self, mock_context_repository):
         """Test RAG with actual OpenAI API if key is available (I-LLM-1)."""
         # Arrange
-        api_key = os.getenv("OPENAI_API_KEY")
         openai_adapter = OpenAIAdapter(
-            api_key=api_key,
+            api_key=API_KEY,
             model="gpt-3.5-turbo",  # Use cheaper model for testing
             embedding_model="text-embedding-ada-002"
         )

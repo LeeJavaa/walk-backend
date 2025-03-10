@@ -48,7 +48,7 @@ class OpenAIAdapter(LLMProvider):
         self.logger = logging.getLogger(__name__)
 
         # Initialize OpenAI client
-        self.client = openai.OpenAI(api_key=self.api_key)
+        self.client = openai.Client(api_key=self.api_key)
 
     @retry(
         retry=retry_if_exception_type(
@@ -102,6 +102,8 @@ class OpenAIAdapter(LLMProvider):
 
             # Make the API call
             response = self.client.chat.completions.create(**params)
+
+            print(response.choices)
 
             # Extract and return the generated text
             return response.choices[0].message.content

@@ -11,14 +11,16 @@ class TestOpenAIAdapter:
 
     @pytest.fixture
     def openai_adapter(self):
-        """Create an OpenAI adapter with test API key."""
-        # Use a mock API key for testing
+        """Create a mocked OpenAI adapter."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            return OpenAIAdapter(
-                api_key="sk-test-key",
-                model="gpt-4",
-                embedding_model="text-embedding-ada-002"
-            )
+            with patch(
+                    "src.infrastructure.adapters.openai_adapter.openai.Client") as mock_client:
+                mock_client.return_value = Mock()  # Ensures `self.client` is a mock
+                return OpenAIAdapter(
+                    api_key="sk-test-key",
+                    model="gpt-4",
+                    embedding_model="text-embedding-ada-002"
+                )
 
     def test_initialization(self, openai_adapter):
         """Test OpenAI adapter initialization (U-LLM-1)."""
@@ -40,16 +42,16 @@ class TestOpenAIAdapter:
             assert adapter.model == "gpt-3.5-turbo"
             assert adapter.embedding_model == "text-embedding-3-large"
 
-    @patch("openai.OpenAI")
-    def test_generate_text(self, mock_openai_client, openai_adapter):
+    def test_generate_text(self, openai_adapter):
         """Test generating text with OpenAI (U-LLM-2)."""
         # Mock the OpenAI client's chat.completions.create method
-        mock_client = Mock()
-        mock_openai_client.return_value = mock_client
-
         mock_response = Mock()
-        mock_response.choices = [Mock(message=Mock(content="Test response"))]
+        mock_response.choices = [
+            Mock(message=Mock(content="Test response"))]
+
+        mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
+        openai_adapter.client = mock_client  # Mock the client object directly
 
         # Call generate_text
         result = openai_adapter.generate_text("Test prompt")
@@ -64,18 +66,18 @@ class TestOpenAIAdapter:
         # Assert result is as expected
         assert result == "Test response"
 
-    @patch("openai.OpenAI")
-    def test_generate_text_with_options(self, mock_openai_client,
-                                        openai_adapter):
+    def test_generate_text_with_options(self, openai_adapter):
         """Test generating text with options (U-LLM-2)."""
         # Mock the OpenAI client's chat.completions.create method
-        mock_client = Mock()
-        mock_openai_client.return_value = mock_client
+
 
         mock_response = Mock()
         mock_response.choices = [
             Mock(message=Mock(content="Test response with options"))]
+
+        mock_client = Mock()
         mock_client.chat.completions.create.return_value = mock_response
+        openai_adapter.client = mock_client  # Mock the client object directly
 
         # Call generate_text with options
         options = {
@@ -98,16 +100,15 @@ class TestOpenAIAdapter:
         # Assert result is as expected
         assert result == "Test response with options"
 
-    @patch("openai.OpenAI")
-    def test_generate_embedding(self, mock_openai_client, openai_adapter):
+    def test_generate_embedding(self, openai_adapter):
         """Test generating embeddings with OpenAI (U-LLM-2)."""
         # Mock the OpenAI client's embeddings.create method
-        mock_client = Mock()
-        mock_openai_client.return_value = mock_client
-
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3, 0.4, 0.5])]
+
+        mock_client = Mock()
         mock_client.embeddings.create.return_value = mock_response
+        openai_adapter.client = mock_client
 
         # Call generate_embedding
         result = openai_adapter.generate_embedding("Test text")
@@ -121,15 +122,12 @@ class TestOpenAIAdapter:
         # Assert result is as expected
         assert result == [0.1, 0.2, 0.3, 0.4, 0.5]
 
-    @patch("openai.OpenAI")
-    def test_error_handling(self, mock_openai_client, openai_adapter):
+    def test_error_handling(self, openai_adapter):
         """Test error handling for OpenAI API errors (U-LLM-3)."""
         # Mock the OpenAI client to raise an exception
         mock_client = Mock()
-        mock_openai_client.return_value = mock_client
-
-        # Set up the exception
         mock_client.chat.completions.create.side_effect = Exception("API Error")
+        openai_adapter.client = mock_client
 
         # Call generate_text and check that the exception is properly handled
         with pytest.raises(Exception) as exc_info:
@@ -138,23 +136,23 @@ class TestOpenAIAdapter:
         # Assert error message contains useful information
         assert "API Error" in str(exc_info.value)
 
-    @patch("openai.OpenAI")
-    def test_rate_limit_handling(self, mock_openai_client, openai_adapter):
+    def test_rate_limit_handling(self, openai_adapter):
         """Test handling rate limit errors (I-LLM-2)."""
         # Mock the OpenAI client to raise a rate limit error
-        mock_client = Mock()
-        mock_openai_client.return_value = mock_client
-
         # Create a rate limit error first, then a successful response
         rate_limit_error = Exception("Rate limit exceeded")
         mock_response = Mock()
         mock_response.choices = [Mock(message=Mock(content="Retry successful"))]
+
+        mock_client = Mock()
 
         # Set up side effect to first raise error, then return mock response
         mock_client.chat.completions.create.side_effect = [
             rate_limit_error,
             mock_response
         ]
+
+        openai_adapter.client = mock_client
 
         # With proper retry mechanism, this should eventually succeed
         # Note: This assumes the adapter has retry logic
