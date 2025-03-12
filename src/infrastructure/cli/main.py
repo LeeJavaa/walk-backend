@@ -1,7 +1,10 @@
 import click
+import os
 import sys
 import logging
 from typing import List
+
+from dotenv import load_dotenv
 
 from src.infrastructure.cli.commands.context_commands import context_group
 from src.infrastructure.cli.commands.task_commands import task_group
@@ -38,6 +41,7 @@ cli.add_command(feedback_group)
 def main():
     """Entry point for the CLI."""
     try:
+        load_dotenv()
         cli()
     except Exception as e:
         click.echo(format_error(f"Unexpected error: {str(e)}"))
