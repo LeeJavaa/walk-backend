@@ -324,6 +324,13 @@ def format_pipeline_state(state: PipelineState) -> str:
 
     artifact_str = "\n".join(artifacts) if artifacts else "No artifacts"
 
+    # Format feedback information
+    feedback_items = []
+    for feedback_item in state.feedback:
+        feedback_items.append(format_feedback(feedback_item))
+
+    feedback_str = "\n".join(feedback_items) if feedback_items else "No feedback"
+
     # Combine everything
     return (
         f"Pipeline State ID: {click.style(state.id, fg='blue')}\n"
@@ -332,6 +339,7 @@ def format_pipeline_state(state: PipelineState) -> str:
         f"Completed Stages: {', '.join(state.stages_completed) if state.stages_completed else 'None'}\n"
         f"Checkpoints:\n{checkpoint_str}\n"
         f"Artifacts:\n{artifact_str}\n"
+        f"Feedback:\n{feedback_str}\n"
     )
 
 
