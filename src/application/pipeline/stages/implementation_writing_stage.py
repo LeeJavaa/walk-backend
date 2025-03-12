@@ -65,3 +65,12 @@ def placeholder_implementation():
         """
         # This stage can only be executed after the implementation planning stage
         return previous_stage_name == "implementation_planning"
+
+    def get_next_stage_name(self) -> str:
+        """
+        Get the name of the next stage in the pipeline.
+
+        Returns:
+            Name of the next stage
+        """
+        return "review"

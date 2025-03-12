@@ -61,3 +61,12 @@ class ReviewStage(PipelineStage):
         """
         # This stage can only be executed after the implementation writing stage
         return previous_stage_name == "implementation_writing"
+
+    def get_next_stage_name(self) -> str:
+        """
+        Get the name of the next stage in the pipeline.
+
+        Returns:
+            Name of the next stage
+        """
+        return ""

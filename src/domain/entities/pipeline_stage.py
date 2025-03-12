@@ -104,3 +104,13 @@ class PipelineStage(ABC):
             True if the transition is valid, False otherwise
         """
         pass
+
+    @abstractmethod
+    def get_next_stage_name(self) -> str:
+        """
+        Get the name of the next stage in the pipeline.
+
+        Returns:
+            Name of the next stage in the pipeline sequence
+        """
+        pass

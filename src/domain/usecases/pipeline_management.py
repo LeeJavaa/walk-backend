@@ -74,7 +74,7 @@ class ExecutePipelineStageUseCase:
         Args:
             pipeline_state_id: ID of the pipeline state
             stage: The stage to execute
-            next_stage_name: Name of the next stage (optional)
+            next_stage_name: Optional override for the next stage name
 
         Returns:
             Updated pipeline state
@@ -95,11 +95,16 @@ class ExecutePipelineStageUseCase:
         if not task:
             raise KeyError(f"Task with ID {pipeline_state.task_id} not found")
 
+        # Validate that the current stage matches the stage being executed
+        if pipeline_state.current_stage != stage.name:
+            raise ValueError(
+                f"Cannot execute {stage.name} - current stage is {pipeline_state.current_stage}")
+
         # Execute the stage
         previous_stage_name = pipeline_state.stages_completed[
             -1] if pipeline_state.stages_completed else None
 
-        # Validate stage transition if this is not the first stage
+        # Validate stage transition
         if previous_stage_name and not stage.validate_transition_from_name(
                 previous_stage_name):
             raise ValueError(
@@ -111,11 +116,14 @@ class ExecutePipelineStageUseCase:
         # Execute the stage
         stage_result = stage.execute(task, pipeline_state)
 
+        # Determine the next stage
+        actual_next_stage = next_stage_name or stage.get_next_stage_name()
+
         # Record the result in the pipeline state
         updated_state = pipeline_state.record_stage_result(
             stage_name=stage.name,
             stage_result=stage_result,
-            next_stage=next_stage_name
+            next_stage=actual_next_stage
         )
 
         # Save the updated state

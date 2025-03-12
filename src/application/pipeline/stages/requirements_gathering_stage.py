@@ -53,3 +53,12 @@ class RequirementsGatheringStage(PipelineStage):
         """
         # This stage can only be executed at the start
         return previous_stage_name == ""
+
+    def get_next_stage_name(self) -> str:
+        """
+        Get the name of the next stage in the pipeline.
+
+        Returns:
+            Name of the next stage
+        """
+        return "knowledge_gathering"

@@ -63,3 +63,12 @@ class ImplementationPlanningStage(PipelineStage):
         """
         # This stage can only be executed after the knowledge gathering stage
         return previous_stage_name == "knowledge_gathering"
+
+    def get_next_stage_name(self) -> str:
+        """
+        Get the name of the next stage in the pipeline.
+
+        Returns:
+            Name of the next stage
+        """
+        return "implementation_writing"
