@@ -3,12 +3,6 @@ import logging
 from typing import Optional, List
 
 from src.domain.entities.task import Task, TaskStatus
-from src.domain.usecases.pipeline_management import (
-    CreatePipelineUseCase,
-    ExecutePipelineStageUseCase,
-    RollbackPipelineUseCase,
-    GetPipelineStateUseCase
-)
 from src.infrastructure.cli.utils.dependency_container import (
     create_pipeline_repository,
     create_pipeline_use_case,
@@ -166,7 +160,7 @@ def execute_task(pipeline_state_id: str, stage: str,
             return
 
         # Create the appropriate stage instance
-        from src.application.pipeline.stages import create_pipeline_stage
+        from src.application.pipeline.stage_factory import create_pipeline_stage
         stage_instance = create_pipeline_stage(stage)
 
         if not stage_instance:

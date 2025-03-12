@@ -2,13 +2,6 @@ import click
 import logging
 from typing import Optional, List
 
-from src.domain.usecases.context_management import (
-    AddContextUseCase,
-    RemoveContextUseCase,
-    UpdateContextUseCase,
-    ListContextUseCase,
-    SearchContextUseCase
-)
 from src.infrastructure.cli.utils.dependency_container import (
     create_add_context_use_case,
     create_remove_context_use_case,
