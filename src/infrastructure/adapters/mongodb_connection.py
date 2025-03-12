@@ -1,6 +1,5 @@
-import motor.motor_asyncio
+import pymongo
 from pymongo.errors import ConnectionFailure
-import asyncio
 from typing import Optional, Any
 
 
@@ -25,7 +24,7 @@ class MongoDBConnection:
         self.client = None
         self.db = None
 
-    async def connect(self) -> None:
+    def connect(self) -> None:
         """
         Establish connection to MongoDB.
 
@@ -33,14 +32,14 @@ class MongoDBConnection:
             ConnectionFailure: If connection fails
         """
         try:
-            # Create a Motor client instance
-            self.client = motor.motor_asyncio.AsyncIOMotorClient(
+            # Create a PyMongo client instance
+            self.client = pymongo.MongoClient(
                 self.connection_string,
                 serverSelectionTimeoutMS=5000  # 5 second timeout
             )
 
             # Ping the server to verify connection
-            await self.client.admin.command('ping')
+            self.client.admin.command('ping')
 
             # Get database
             self.db = self.client[self.db_name]
@@ -51,15 +50,14 @@ class MongoDBConnection:
             raise ConnectionFailure(
                 f"Failed to connect to MongoDB: {str(e)}") from e
 
-    async def close(self) -> None:
+    def close(self) -> None:
         """Close the MongoDB connection."""
         if self.client:
             self.client.close()
             self.client = None
             self.db = None
 
-    def get_collection(self,
-                       collection_name: str) -> motor.motor_asyncio.AsyncIOMotorCollection:
+    def get_collection(self, collection_name: str) -> Any:
         """
         Get a MongoDB collection.
 
@@ -80,7 +78,7 @@ class MongoDBConnection:
 
         return self.db[collection_name]
 
-    async def start_transaction(self) -> Any:
+    def start_transaction(self) -> Any:
         """
         Start a MongoDB transaction.
 
@@ -95,14 +93,14 @@ class MongoDBConnection:
             raise ValueError("Not connected to MongoDB")
 
         # Create a client session
-        session = await self.client.start_session()
+        session = self.client.start_session()
 
         # Start a transaction
         session.start_transaction()
 
         return session
 
-    async def commit_transaction(self, session: Any) -> None:
+    def commit_transaction(self, session: Any) -> None:
         """
         Commit a MongoDB transaction.
 
@@ -116,11 +114,11 @@ class MongoDBConnection:
             raise ValueError("Invalid session")
 
         try:
-            await session.commit_transaction()
+            session.commit_transaction()
         finally:
-            await session.end_session()
+            session.end_session()
 
-    async def abort_transaction(self, session: Any) -> None:
+    def abort_transaction(self, session: Any) -> None:
         """
         Abort a MongoDB transaction.
 
@@ -134,11 +132,11 @@ class MongoDBConnection:
             raise ValueError("Invalid session")
 
         try:
-            await session.abort_transaction()
+            session.abort_transaction()
         finally:
-            await session.end_session()
+            session.end_session()
 
-    async def create_indexes(self, collection_name: str, indexes: list) -> None:
+    def create_indexes(self, collection_name: str, indexes: list[str, Any]) -> None:
         """
         Create indexes in a collection.
 
@@ -160,4 +158,4 @@ class MongoDBConnection:
 
         collection = self.db[collection_name]
         for index_spec in indexes:
-            await collection.create_index(**index_spec)
+            collection.create_index(**index_spec)

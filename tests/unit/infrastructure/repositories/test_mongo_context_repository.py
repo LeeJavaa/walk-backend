@@ -1,9 +1,7 @@
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-import motor.motor_asyncio
+from unittest.mock import Mock, MagicMock
 from bson import ObjectId
 from datetime import datetime
-import asyncio
 from typing import Dict, Any, List
 
 from src.domain.entities.context_item import ContextItem, ContentType
@@ -17,18 +15,16 @@ class TestMongoContextRepository:
     @pytest.fixture
     def mock_collection(self):
         """Mock MongoDB collection for testing."""
-        collection = AsyncMock()
+        collection = MagicMock()
 
         # For find_one
         collection.find_one.return_value = None
         collection.insert_one.return_value = MagicMock(inserted_id=ObjectId())
 
-        # For find - make it return a regular mock, not a coroutine
-        cursor_mock = MagicMock()  # Use MagicMock not AsyncMock for the cursor
-        cursor_mock.to_list = AsyncMock(
-            return_value=[])  # Only this method is async
-        collection.find = MagicMock(
-            return_value=cursor_mock)  # find itself is not async
+        # For find
+        cursor_mock = MagicMock()
+        cursor_mock.to_list.return_value = []
+        collection.find = MagicMock(return_value=cursor_mock)
 
         # Other operations
         collection.update_one.return_value = MagicMock(modified_count=1)
@@ -39,18 +35,16 @@ class TestMongoContextRepository:
     @pytest.fixture
     def mock_vector_collection(self):
         """Mock MongoDB vector collection for testing."""
-        collection = AsyncMock()
+        collection = MagicMock()
 
-        # For find - make it return a regular mock, not a coroutine
-        cursor_mock = MagicMock()  # Use MagicMock not AsyncMock for the cursor
-        cursor_mock.to_list = AsyncMock(
-            return_value=[])  # Only this method is async
-        collection.find = MagicMock(
-            return_value=cursor_mock)  # find itself is not async
+        # For find
+        cursor_mock = MagicMock()
+        cursor_mock.to_list.return_value = []
+        collection.find = MagicMock(return_value=cursor_mock)
 
-        # Same for aggregate
+        # For aggregate
         agg_cursor_mock = MagicMock()
-        agg_cursor_mock.to_list =  AsyncMock(return_value=[])
+        agg_cursor_mock.to_list.return_value = []
         collection.aggregate = MagicMock(return_value=agg_cursor_mock)
 
         # Other operations
@@ -85,20 +79,17 @@ class TestMongoContextRepository:
             embedding=[0.1, 0.2, 0.3, 0.4, 0.5]
         )
 
-    @pytest.mark.asyncio
-    async def test_add_context_item(self, mongo_repository, mock_collection,
-                                    mock_vector_collection,
-                                    sample_context_item):
+    def test_add_context_item(self, mongo_repository, mock_collection,
+                            mock_vector_collection, sample_context_item):
         """Test adding a context item to MongoDB (U-DB-1)."""
         # Arrange
-        # Configure insert_one to return a mock with inserted_id
         mock_collection.insert_one.return_value = MagicMock(
             inserted_id=ObjectId())
         mock_vector_collection.insert_one.return_value = MagicMock(
             inserted_id=ObjectId())
 
         # Act
-        result = await mongo_repository.add(sample_context_item)
+        result = mongo_repository.add(sample_context_item)
 
         # Assert
         mock_collection.insert_one.assert_called_once()
@@ -108,12 +99,10 @@ class TestMongoContextRepository:
         assert result.source == sample_context_item.source
         assert result.content == sample_context_item.content
 
-    @pytest.mark.asyncio
-    async def test_get_context_item_by_id(self, mongo_repository,
-                                          mock_collection, sample_context_item):
+    def test_get_context_item_by_id(self, mongo_repository,
+                                  mock_collection, sample_context_item):
         """Test retrieving a context item by ID from MongoDB (U-DB-1)."""
         # Arrange
-        # Configure find_one to return a document
         mock_document = {
             "_id": ObjectId(),
             "id": sample_context_item.id,
@@ -127,7 +116,7 @@ class TestMongoContextRepository:
         mock_collection.find_one.return_value = mock_document
 
         # Act
-        result = await mongo_repository.get_by_id(sample_context_item.id)
+        result = mongo_repository.get_by_id(sample_context_item.id)
 
         # Assert
         mock_collection.find_one.assert_called_once_with(
@@ -137,28 +126,24 @@ class TestMongoContextRepository:
         assert result.source == sample_context_item.source
         assert result.content == sample_context_item.content
 
-    @pytest.mark.asyncio
-    async def test_get_context_item_not_found(self, mongo_repository,
-                                              mock_collection):
+    def test_get_context_item_not_found(self, mongo_repository,
+                                      mock_collection):
         """Test getting a non-existent context item (U-DB-1)."""
         # Arrange
         mock_collection.find_one.return_value = None
 
         # Act
-        result = await mongo_repository.get_by_id("nonexistent-id")
+        result = mongo_repository.get_by_id("nonexistent-id")
 
         # Assert
         mock_collection.find_one.assert_called_once_with(
             {"id": "nonexistent-id"})
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_update_context_item(self, mongo_repository, mock_collection,
-                                       mock_vector_collection,
-                                       sample_context_item):
+    def test_update_context_item(self, mongo_repository, mock_collection,
+                               mock_vector_collection, sample_context_item):
         """Test updating a context item in MongoDB (U-DB-1)."""
         # Arrange
-        # Configure find_one to return a document
         mock_document = {
             "_id": ObjectId(),
             "id": sample_context_item.id,
@@ -179,7 +164,7 @@ class TestMongoContextRepository:
         updated_item.content = "def updated_function():\n    return 'Updated!'"
 
         # Act
-        result = await mongo_repository.update(updated_item)
+        result = mongo_repository.update(updated_item)
 
         # Assert
         mock_collection.find_one.assert_called_once_with(
@@ -189,21 +174,18 @@ class TestMongoContextRepository:
         assert result is not None
         assert result.content == updated_item.content
 
-    @pytest.mark.asyncio
-    async def test_update_nonexistent_item(self, mongo_repository,
-                                           mock_collection,
-                                           sample_context_item):
+    def test_update_nonexistent_item(self, mongo_repository,
+                                   mock_collection, sample_context_item):
         """Test updating a non-existent context item (U-DB-2)."""
         # Arrange
         mock_collection.find_one.return_value = None
 
         # Act & Assert
         with pytest.raises(KeyError):
-            await mongo_repository.update(sample_context_item)
+            mongo_repository.update(sample_context_item)
 
-    @pytest.mark.asyncio
-    async def test_delete_context_item(self, mongo_repository, mock_collection,
-                                       mock_vector_collection):
+    def test_delete_context_item(self, mongo_repository, mock_collection,
+                               mock_vector_collection):
         """Test deleting a context item from MongoDB (U-DB-1)."""
         # Arrange
         context_id = "test-id"
@@ -212,7 +194,7 @@ class TestMongoContextRepository:
             deleted_count=1)
 
         # Act
-        result = await mongo_repository.delete(context_id)
+        result = mongo_repository.delete(context_id)
 
         # Assert
         mock_collection.delete_one.assert_called_once_with({"id": context_id})
@@ -220,10 +202,8 @@ class TestMongoContextRepository:
             {"id": context_id})
         assert result is True
 
-    @pytest.mark.asyncio
-    async def test_delete_nonexistent_item(self, mongo_repository,
-                                           mock_collection,
-                                           mock_vector_collection):
+    def test_delete_nonexistent_item(self, mongo_repository,
+                                   mock_collection, mock_vector_collection):
         """Test deleting a non-existent context item (U-DB-2)."""
         # Arrange
         context_id = "nonexistent-id"
@@ -232,7 +212,7 @@ class TestMongoContextRepository:
             deleted_count=0)
 
         # Act
-        result = await mongo_repository.delete(context_id)
+        result = mongo_repository.delete(context_id)
 
         # Assert
         mock_collection.delete_one.assert_called_once_with({"id": context_id})
@@ -240,8 +220,7 @@ class TestMongoContextRepository:
             {"id": context_id})
         assert result is False
 
-    @pytest.mark.asyncio
-    async def test_list_context_items(self, mongo_repository, mock_collection):
+    def test_list_context_items(self, mongo_repository, mock_collection):
         """Test listing context items from MongoDB (U-DB-1)."""
         # Arrange
         mock_documents = [
@@ -269,7 +248,7 @@ class TestMongoContextRepository:
         mock_collection.find.return_value.to_list.return_value = mock_documents
 
         # Act
-        result = await mongo_repository.list()
+        result = mongo_repository.list()
 
         # Assert
         mock_collection.find.assert_called_once()
@@ -277,8 +256,7 @@ class TestMongoContextRepository:
         assert result[0].id == "item1"
         assert result[1].id == "item2"
 
-    @pytest.mark.asyncio
-    async def test_list_with_filters(self, mongo_repository, mock_collection):
+    def test_list_with_filters(self, mongo_repository, mock_collection):
         """Test listing context items with filters (U-DB-3)."""
         # Arrange
         filters = {"content_type": ContentType.PYTHON}
@@ -297,7 +275,7 @@ class TestMongoContextRepository:
         mock_collection.find.return_value.to_list.return_value = mock_documents
 
         # Act
-        result = await mongo_repository.list(filters)
+        result = mongo_repository.list(filters)
 
         # Assert
         mock_collection.find.assert_called_once()
@@ -305,9 +283,8 @@ class TestMongoContextRepository:
         assert result[0].id == "item1"
         assert result[0].content_type == ContentType.PYTHON
 
-    @pytest.mark.asyncio
-    async def test_search_by_vector(self, mongo_repository,
-                                    mock_vector_collection, mock_collection):
+    def test_search_by_vector(self, mongo_repository,
+                            mock_vector_collection, mock_collection):
         """Test vector similarity search (U-DB-3)."""
         # Arrange
         query_vector = [0.1, 0.2, 0.3, 0.4, 0.5]
@@ -355,8 +332,7 @@ class TestMongoContextRepository:
 
         mock_vector_collection.aggregate.return_value.to_list.return_value = mock_search_results
 
-        # Mock find_one to return corresponding documents
-        async def mock_find_one_side_effect(query):
+        def mock_find_one_side_effect(query):
             item_id = query["id"]
             for doc in mock_documents:
                 if doc["id"] == item_id:
@@ -366,7 +342,7 @@ class TestMongoContextRepository:
         mock_collection.find_one.side_effect = mock_find_one_side_effect
 
         # Act
-        result = await mongo_repository.search_by_vector(query_vector, limit)
+        result = mongo_repository.search_by_vector(query_vector, limit)
 
         # Assert
         mock_vector_collection.aggregate.assert_called_once()
@@ -376,15 +352,14 @@ class TestMongoContextRepository:
         assert result[1][0].id == "item2"
         assert result[1][1] == 0.85
 
-    @pytest.mark.asyncio
-    async def test_handle_connection_error(self, mongo_repository,
-                                           mock_collection):
+    def test_handle_connection_error(self, mongo_repository,
+                                   mock_collection):
         """Test handling MongoDB connection errors (U-DB-2)."""
         # Arrange
         mock_collection.find_one.side_effect = Exception("Connection error")
 
         # Act & Assert
         with pytest.raises(Exception) as exc_info:
-            await mongo_repository.get_by_id("test-id")
+            mongo_repository.get_by_id("test-id")
 
         assert "Connection error" in str(exc_info.value)

@@ -1,9 +1,7 @@
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-import motor.motor_asyncio
+from unittest.mock import Mock, MagicMock
 from bson import ObjectId
 from datetime import datetime
-import asyncio
 from typing import Dict, Any, List
 
 from src.domain.entities.task import Task, TaskStatus
@@ -18,16 +16,15 @@ class TestMongoPipelineRepository:
     @pytest.fixture
     def mock_tasks_collection(self):
         """Mock MongoDB tasks collection for testing."""
-        collection = AsyncMock()
+        collection = MagicMock()
         collection.find_one.return_value = None
         collection.insert_one.return_value = MagicMock(inserted_id=ObjectId())
 
-        # For find - make it return a regular mock, not a coroutine
-        cursor_mock = MagicMock()  # Use MagicMock not AsyncMock for the cursor
-        cursor_mock.to_list = AsyncMock(
-            return_value=[])  # Only this method is async
-        collection.find = MagicMock(
-            return_value=cursor_mock)  # find itself is not async
+        # For find - make it return a cursor mock
+        cursor_mock = MagicMock()
+        cursor_mock.limit = MagicMock(return_value=cursor_mock)
+        cursor_mock.sort = MagicMock(return_value=cursor_mock)
+        collection.find = MagicMock(return_value=cursor_mock)
 
         collection.update_one.return_value = MagicMock(modified_count=1)
 
@@ -36,16 +33,15 @@ class TestMongoPipelineRepository:
     @pytest.fixture
     def mock_states_collection(self):
         """Mock MongoDB pipeline states collection for testing."""
-        collection = AsyncMock()
+        collection = MagicMock()
         collection.find_one.return_value = None
         collection.insert_one.return_value = MagicMock(inserted_id=ObjectId())
 
-        # For find - make it return a regular mock, not a coroutine
-        cursor_mock = MagicMock()  # Use MagicMock not AsyncMock for the cursor
-        cursor_mock.to_list = AsyncMock(
-            return_value=[])  # Only this method is async
-        collection.find = MagicMock(
-            return_value=cursor_mock)  # find itself is not async
+        # For find - make it return a cursor mock
+        cursor_mock = MagicMock()
+        cursor_mock.limit = MagicMock(return_value=cursor_mock)
+        cursor_mock.sort = MagicMock(return_value=cursor_mock)
+        collection.find = MagicMock(return_value=cursor_mock)
 
         collection.update_one.return_value = MagicMock(modified_count=1)
 
@@ -87,16 +83,15 @@ class TestMongoPipelineRepository:
             feedback=[]
         )
 
-    @pytest.mark.asyncio
-    async def test_save_task(self, mongo_repository, mock_tasks_collection,
-                             sample_task):
-        """Test saving a task to MongoDB (U-DB-1)."""
+    def test_save_task(self, mongo_repository, mock_tasks_collection,
+                       sample_task):
+        """Test saving a task to MongoDB."""
         # Arrange
         mock_tasks_collection.insert_one.return_value = MagicMock(
             inserted_id=ObjectId())
 
         # Act
-        result = await mongo_repository.save_task(sample_task)
+        result = mongo_repository.save_task(sample_task)
 
         # Assert
         mock_tasks_collection.insert_one.assert_called_once()
@@ -104,12 +99,10 @@ class TestMongoPipelineRepository:
         assert result.id == sample_task.id
         assert result.description == sample_task.description
 
-    @pytest.mark.asyncio
-    async def test_get_task(self, mongo_repository, mock_tasks_collection,
-                            sample_task):
-        """Test retrieving a task by ID from MongoDB (U-DB-1)."""
+    def test_get_task(self, mongo_repository, mock_tasks_collection,
+                      sample_task):
+        """Test retrieving a task by ID from MongoDB."""
         # Arrange
-        # Configure find_one to return a document
         mock_document = {
             "_id": ObjectId(),
             "id": sample_task.id,
@@ -123,7 +116,7 @@ class TestMongoPipelineRepository:
         mock_tasks_collection.find_one.return_value = mock_document
 
         # Act
-        result = await mongo_repository.get_task(sample_task.id)
+        result = mongo_repository.get_task(sample_task.id)
 
         # Assert
         mock_tasks_collection.find_one.assert_called_once_with(
@@ -133,24 +126,21 @@ class TestMongoPipelineRepository:
         assert result.description == sample_task.description
         assert result.requirements == sample_task.requirements
 
-    @pytest.mark.asyncio
-    async def test_get_task_not_found(self, mongo_repository,
-                                      mock_tasks_collection):
+    def test_get_task_not_found(self, mongo_repository, mock_tasks_collection):
         """Test getting a non-existent task (U-DB-2)."""
         # Arrange
         mock_tasks_collection.find_one.return_value = None
 
         # Act
-        result = await mongo_repository.get_task("nonexistent-id")
+        result = mongo_repository.get_task("nonexistent-id")
 
         # Assert
         mock_tasks_collection.find_one.assert_called_once_with(
             {"id": "nonexistent-id"})
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_list_tasks(self, mongo_repository, mock_tasks_collection,
-                              sample_task):
+    def test_list_tasks(self, mongo_repository, mock_tasks_collection,
+                       sample_task):
         """Test listing tasks from MongoDB (U-DB-1)."""
         # Arrange
         mock_documents = [
@@ -175,10 +165,12 @@ class TestMongoPipelineRepository:
                 "created_at": datetime.now()
             }
         ]
-        mock_tasks_collection.find.return_value.to_list.return_value = mock_documents
+        # Set up the mock to return documents directly through iteration
+        cursor_mock = mock_tasks_collection.find.return_value
+        cursor_mock.__iter__.return_value = mock_documents
 
         # Act
-        result = await mongo_repository.list_tasks()
+        result = mongo_repository.list_tasks()
 
         # Assert
         mock_tasks_collection.find.assert_called_once()
@@ -186,9 +178,7 @@ class TestMongoPipelineRepository:
         assert result[0].id == "task1"
         assert result[1].id == "task2"
 
-    @pytest.mark.asyncio
-    async def test_list_tasks_with_status(self, mongo_repository,
-                                          mock_tasks_collection):
+    def test_list_tasks_with_status(self, mongo_repository, mock_tasks_collection):
         """Test listing tasks with status filter (U-DB-3)."""
         # Arrange
         status = TaskStatus.IN_PROGRESS
@@ -204,10 +194,11 @@ class TestMongoPipelineRepository:
                 "created_at": datetime.now()
             }
         ]
-        mock_tasks_collection.find.return_value.to_list.return_value = mock_documents
+        cursor_mock = mock_tasks_collection.find.return_value
+        cursor_mock.__iter__.return_value = mock_documents
 
         # Act
-        result = await mongo_repository.list_tasks(status)
+        result = mongo_repository.list_tasks(status)
 
         # Assert
         mock_tasks_collection.find.assert_called_once_with({"status": status})
@@ -215,15 +206,13 @@ class TestMongoPipelineRepository:
         assert result[0].id == "task2"
         assert result[0].status == TaskStatus.IN_PROGRESS
 
-    @pytest.mark.asyncio
-    async def test_save_pipeline_state(self, mongo_repository,
-                                       mock_states_collection,
-                                       sample_task,
-                                       sample_pipeline_state,
-                                       mock_tasks_collection):
+    def test_save_pipeline_state(self, mongo_repository,
+                                mock_states_collection,
+                                sample_task,
+                                sample_pipeline_state,
+                                mock_tasks_collection):
         """Test saving a pipeline state to MongoDB (U-DB-1)."""
         # Arrange
-        # First, ensure the task exists
         mock_tasks_collection.find_one.return_value = {
             "_id": ObjectId(),
             "id": sample_pipeline_state.task_id,
@@ -239,8 +228,7 @@ class TestMongoPipelineRepository:
             inserted_id=ObjectId())
 
         # Act
-        result = await mongo_repository.save_pipeline_state(
-            sample_pipeline_state)
+        result = mongo_repository.save_pipeline_state(sample_pipeline_state)
 
         # Assert
         mock_tasks_collection.find_one.assert_called_once_with(
@@ -250,30 +238,27 @@ class TestMongoPipelineRepository:
         assert result.id == sample_pipeline_state.id
         assert result.task_id == sample_pipeline_state.task_id
 
-    @pytest.mark.asyncio
-    async def test_save_pipeline_state_task_not_found(self, mongo_repository,
-                                                      mock_states_collection,
-                                                      sample_pipeline_state,
-                                                      mock_tasks_collection):
+    def test_save_pipeline_state_task_not_found(self, mongo_repository,
+                                               mock_states_collection,
+                                               sample_pipeline_state,
+                                               mock_tasks_collection):
         """Test saving a pipeline state with non-existent task (U-DB-2)."""
         # Arrange
         mock_tasks_collection.find_one.return_value = None
 
         # Act & Assert
         with pytest.raises(KeyError):
-            await mongo_repository.save_pipeline_state(sample_pipeline_state)
+            mongo_repository.save_pipeline_state(sample_pipeline_state)
 
         mock_tasks_collection.find_one.assert_called_once_with(
             {"id": sample_pipeline_state.task_id})
         mock_states_collection.insert_one.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_get_pipeline_state(self, mongo_repository,
-                                      mock_states_collection,
-                                      sample_pipeline_state):
+    def test_get_pipeline_state(self, mongo_repository,
+                               mock_states_collection,
+                               sample_pipeline_state):
         """Test retrieving a pipeline state by ID from MongoDB (U-DB-1)."""
         # Arrange
-        # Configure find_one to return a document
         mock_document = {
             "_id": ObjectId(),
             "id": sample_pipeline_state.id,
@@ -289,8 +274,7 @@ class TestMongoPipelineRepository:
         mock_states_collection.find_one.return_value = mock_document
 
         # Act
-        result = await mongo_repository.get_pipeline_state(
-            sample_pipeline_state.id)
+        result = mongo_repository.get_pipeline_state(sample_pipeline_state.id)
 
         # Assert
         mock_states_collection.find_one.assert_called_once_with(
@@ -300,28 +284,25 @@ class TestMongoPipelineRepository:
         assert result.task_id == sample_pipeline_state.task_id
         assert result.current_stage == sample_pipeline_state.current_stage
 
-    @pytest.mark.asyncio
-    async def test_get_pipeline_state_not_found(self, mongo_repository,
-                                                mock_states_collection):
+    def test_get_pipeline_state_not_found(self, mongo_repository,
+                                         mock_states_collection):
         """Test getting a non-existent pipeline state (U-DB-2)."""
         # Arrange
         mock_states_collection.find_one.return_value = None
 
         # Act
-        result = await mongo_repository.get_pipeline_state("nonexistent-id")
+        result = mongo_repository.get_pipeline_state("nonexistent-id")
 
         # Assert
         mock_states_collection.find_one.assert_called_once_with(
             {"id": "nonexistent-id"})
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_get_latest_pipeline_state(self, mongo_repository,
-                                             mock_states_collection):
+    def test_get_latest_pipeline_state(self, mongo_repository,
+                                      mock_states_collection):
         """Test retrieving the latest pipeline state for a task (U-DB-3)."""
         # Arrange
         task_id = "task-id"
-        # Create two states with different timestamps
         earlier_time = datetime(2023, 1, 1, 10, 0, 0)
         later_time = datetime(2023, 1, 1, 11, 0, 0)
 
@@ -353,19 +334,15 @@ class TestMongoPipelineRepository:
             }
         ]
 
-        # Create proper mocks for the chain
+        # Set up the mock chain
         cursor_mock = MagicMock()
-        sort_mock = MagicMock()
-        limit_mock = MagicMock()
-
-        # Set up the chain
-        mock_states_collection.find = MagicMock(return_value=cursor_mock)
-        cursor_mock.sort = MagicMock(return_value=sort_mock)
-        sort_mock.limit = MagicMock(return_value=limit_mock)
-        limit_mock.to_list = AsyncMock(return_value=[mock_documents[1]])
+        cursor_mock.__iter__.return_value = [mock_document]
+        mock_states_collection.find.return_value = cursor_mock
+        cursor_mock.sort.return_value = cursor_mock
+        cursor_mock.limit.return_value = cursor_mock
 
         # Act
-        result = await mongo_repository.get_latest_pipeline_state(task_id)
+        result = mongo_repository.get_latest_pipeline_state(task_id)
 
         # Assert
         mock_states_collection.find.assert_called_once_with(
@@ -374,8 +351,7 @@ class TestMongoPipelineRepository:
         assert result.id == "state2"
         assert result.updated_at > earlier_time
 
-    @pytest.mark.asyncio
-    async def test_transaction_support(self, mongo_repository):
+    def test_transaction_support(self, mongo_repository):
         """Test MongoDB transaction support (I-DB-2)."""
         # This is more of an integration test, but we'll mock it here
         # In a real environment, we would test with actual MongoDB transactions

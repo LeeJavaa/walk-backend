@@ -1,4 +1,4 @@
-import motor.motor_asyncio
+import pymongo
 from pymongo.errors import DuplicateKeyError, PyMongoError
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -37,10 +37,10 @@ class MongoPipelineRepository(PipelineRepository):
         self._states_collection = None
         self.logger = logging.getLogger(__name__)
 
-    async def _ensure_connection(self) -> None:
+    def _ensure_connection(self) -> None:
         """Ensure MongoDB connection is established."""
         if self.connection and not self.connection.client:
-            await self.connection.connect()
+            self.connection.connect()
 
         if self._tasks_collection is None or self._states_collection is None:
             if self.connection:
@@ -50,25 +50,25 @@ class MongoPipelineRepository(PipelineRepository):
                     self.states_collection_name)
             else:
                 # Create a new connection if one wasn't provided
-                client = motor.motor_asyncio.AsyncIOMotorClient()
+                client = pymongo.MongoClient()
                 db = client[self.db_name or "walk"]
                 self._tasks_collection = db[self.tasks_collection_name]
                 self._states_collection = db[self.states_collection_name]
 
         # Create indexes if they don't exist
-        await self._ensure_indexes()
+        self._ensure_indexes()
 
-    async def _ensure_indexes(self) -> None:
+    def _ensure_indexes(self) -> None:
         """Create necessary indexes in MongoDB collections."""
         try:
             # Tasks collection indexes
-            await self._tasks_collection.create_index("id", unique=True)
-            await self._tasks_collection.create_index("status")
+            self._tasks_collection.create_index("id", unique=True)
+            self._tasks_collection.create_index("status")
 
             # Pipeline states collection indexes
-            await self._states_collection.create_index("id", unique=True)
-            await self._states_collection.create_index("task_id")
-            await self._states_collection.create_index(
+            self._states_collection.create_index("id", unique=True)
+            self._states_collection.create_index("task_id")
+            self._states_collection.create_index(
                 [("task_id", 1), ("updated_at", -1)])
         except PyMongoError as e:
             self.logger.warning(f"Failed to create indexes: {str(e)}")
@@ -176,7 +176,7 @@ class MongoPipelineRepository(PipelineRepository):
             updated_at=document.get("updated_at")
         )
 
-    async def save_task(self, task: Task) -> Task:
+    def save_task(self, task: Task) -> Task:
         """
         Save a task to the repository.
 
@@ -191,24 +191,24 @@ class MongoPipelineRepository(PipelineRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Convert task to document
             document = self._task_to_document(task)
 
             # Check if task already exists
-            existing = await self._tasks_collection.find_one({"id": task.id})
+            existing = self._tasks_collection.find_one({"id": task.id})
 
             if existing:
                 # Update existing task
-                await self._tasks_collection.update_one(
+                self._tasks_collection.update_one(
                     {"id": task.id},
                     {"$set": document}
                 )
             else:
                 # Insert new task
-                await self._tasks_collection.insert_one(document)
+                self._tasks_collection.insert_one(document)
 
             return task
 
@@ -216,7 +216,7 @@ class MongoPipelineRepository(PipelineRepository):
             self.logger.error(f"Failed to save task {task.id}: {str(e)}")
             raise
 
-    async def get_task(self, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str) -> Optional[Task]:
         """
         Get a task by ID.
 
@@ -229,17 +229,17 @@ class MongoPipelineRepository(PipelineRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
-            document = await self._tasks_collection.find_one({"id": task_id})
+            document = self._tasks_collection.find_one({"id": task_id})
             return self._document_to_task(document)
 
         except PyMongoError as e:
             self.logger.error(f"Failed to get task {task_id}: {str(e)}")
             raise
 
-    async def list_tasks(self, status: Optional[str] = None) -> List[Task]:
+    def list_tasks(self, status: Optional[str] = None) -> List[Task]:
         """
         List tasks in the repository.
 
@@ -252,7 +252,7 @@ class MongoPipelineRepository(PipelineRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Prepare query
@@ -262,7 +262,7 @@ class MongoPipelineRepository(PipelineRepository):
 
             # Execute query
             cursor = self._tasks_collection.find(query)
-            documents = await cursor.to_list(length=100)  # Limit to 100 items
+            documents = list(cursor)
 
             # Convert to tasks
             return [self._document_to_task(doc) for doc in documents]
@@ -271,7 +271,7 @@ class MongoPipelineRepository(PipelineRepository):
             self.logger.error(f"Failed to list tasks: {str(e)}")
             raise
 
-    async def save_pipeline_state(self, state: PipelineState) -> PipelineState:
+    def save_pipeline_state(self, state: PipelineState) -> PipelineState:
         """
         Save a pipeline state to the repository.
 
@@ -287,11 +287,11 @@ class MongoPipelineRepository(PipelineRepository):
             KeyError: If the associated task does not exist
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Check if the task exists
-            task = await self.get_task(state.task_id)
+            task = self.get_task(state.task_id)
             if not task:
                 raise KeyError(f"Task with ID {state.task_id} not found")
 
@@ -302,17 +302,17 @@ class MongoPipelineRepository(PipelineRepository):
             document = self._state_to_document(state)
 
             # Check if state already exists
-            existing = await self._states_collection.find_one({"id": state.id})
+            existing = self._states_collection.find_one({"id": state.id})
 
             if existing:
                 # Update existing state
-                await self._states_collection.update_one(
+                self._states_collection.update_one(
                     {"id": state.id},
                     {"$set": document}
                 )
             else:
                 # Insert new state
-                await self._states_collection.insert_one(document)
+                self._states_collection.insert_one(document)
 
             return state
 
@@ -323,8 +323,7 @@ class MongoPipelineRepository(PipelineRepository):
                 f"Failed to save pipeline state {state.id}: {str(e)}")
             raise
 
-    async def get_pipeline_state(self, state_id: str) -> Optional[
-        PipelineState]:
+    def get_pipeline_state(self, state_id: str) -> Optional[PipelineState]:
         """
         Get a pipeline state by ID.
 
@@ -337,10 +336,10 @@ class MongoPipelineRepository(PipelineRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
-            document = await self._states_collection.find_one({"id": state_id})
+            document = self._states_collection.find_one({"id": state_id})
             return self._document_to_state(document)
 
         except PyMongoError as e:
@@ -348,8 +347,7 @@ class MongoPipelineRepository(PipelineRepository):
                 f"Failed to get pipeline state {state_id}: {str(e)}")
             raise
 
-    async def get_latest_pipeline_state(self, task_id: str) -> Optional[
-        PipelineState]:
+    def get_latest_pipeline_state(self, task_id: str) -> Optional[PipelineState]:
         """
         Get the latest pipeline state for a task.
 
@@ -362,7 +360,7 @@ class MongoPipelineRepository(PipelineRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Find the latest state for the task based on updated_at timestamp
@@ -370,7 +368,7 @@ class MongoPipelineRepository(PipelineRepository):
                 .sort("updated_at", -1) \
                 .limit(1)
 
-            documents = await cursor.to_list(length=1)
+            documents = list(cursor)
             if not documents:
                 return None
 
@@ -381,7 +379,7 @@ class MongoPipelineRepository(PipelineRepository):
                 f"Failed to get latest pipeline state for task {task_id}: {str(e)}")
             raise
 
-    async def start_transaction(self):
+    def start_transaction(self):
         """
         Start a MongoDB transaction.
 
@@ -389,11 +387,11 @@ class MongoPipelineRepository(PipelineRepository):
             A session object for the transaction
         """
         if self.connection:
-            return await self.connection.start_transaction()
+            return self.connection.start_transaction()
         else:
             raise ValueError("No MongoDB connection available for transactions")
 
-    async def commit_transaction(self, session):
+    def commit_transaction(self, session):
         """
         Commit a MongoDB transaction.
 
@@ -401,11 +399,11 @@ class MongoPipelineRepository(PipelineRepository):
             session: Session object from start_transaction
         """
         if self.connection:
-            await self.connection.commit_transaction(session)
+            self.connection.commit_transaction(session)
         else:
             raise ValueError("No MongoDB connection available for transactions")
 
-    async def abort_transaction(self, session):
+    def abort_transaction(self, session):
         """
         Abort a MongoDB transaction.
 
@@ -413,6 +411,6 @@ class MongoPipelineRepository(PipelineRepository):
             session: Session object from start_transaction
         """
         if self.connection:
-            await self.connection.abort_transaction(session)
+            self.connection.abort_transaction(session)
         else:
             raise ValueError("No MongoDB connection available for transactions")

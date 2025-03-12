@@ -1,4 +1,4 @@
-import motor.motor_asyncio
+import pymongo
 from pymongo.errors import DuplicateKeyError, PyMongoError
 from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
@@ -36,10 +36,10 @@ class MongoContextRepository(ContextRepository):
         self._vector_collection = None
         self.logger = logging.getLogger(__name__)
 
-    async def _ensure_connection(self) -> None:
+    def _ensure_connection(self) -> None:
         """Ensure MongoDB connection is established."""
         if self.connection and not self.connection.client:
-            await self.connection.connect()
+            self.connection.connect()
 
         if self._collection is None or self._vector_collection is None:
             if self.connection:
@@ -49,25 +49,25 @@ class MongoContextRepository(ContextRepository):
                     self.vector_collection_name)
             else:
                 # Create a new connection if one wasn't provided
-                client = motor.motor_asyncio.AsyncIOMotorClient()
+                client = pymongo.MongoClient()
                 db = client[self.db_name or "walk"]
                 self._collection = db[self.collection_name]
                 self._vector_collection = db[self.vector_collection_name]
 
         # Create indexes if they don't exist
-        await self._ensure_indexes()
+        self._ensure_indexes()
 
-    async def _ensure_indexes(self) -> None:
+    def _ensure_indexes(self) -> None:
         """Create necessary indexes in MongoDB collections."""
         try:
             # Context items collection indexes
-            await self._collection.create_index("id", unique=True)
-            await self._collection.create_index("content_type")
-            await self._collection.create_index("source")
+            self._collection.create_index("id", unique=True)
+            self._collection.create_index("content_type")
+            self._collection.create_index("source")
 
             # Vector collection indexes
-            await self._vector_collection.create_index("id", unique=True)
-            await self._vector_collection.create_index([("vector", "2dsphere")])
+            self._vector_collection.create_index("id", unique=True)
+            self._vector_collection.create_index([("vector", "2dsphere")])
         except PyMongoError as e:
             self.logger.warning(f"Failed to create indexes: {str(e)}")
 
@@ -124,7 +124,7 @@ class MongoContextRepository(ContextRepository):
             updated_at=document.get("updated_at")
         )
 
-    async def add(self, context_item: ContextItem) -> ContextItem:
+    def add(self, context_item: ContextItem) -> ContextItem:
         """
         Add a context item to the repository.
 
@@ -138,12 +138,12 @@ class MongoContextRepository(ContextRepository):
             DuplicateKeyError: If an item with the same ID already exists
             PyMongoError: For other MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Store the main document
             document = self._entity_to_document(context_item)
-            await self._collection.insert_one(document)
+            self._collection.insert_one(document)
 
             # Store the vector separately for efficient similarity search
             if context_item.embedding:
@@ -151,7 +151,7 @@ class MongoContextRepository(ContextRepository):
                     "id": context_item.id,
                     "vector": context_item.embedding
                 }
-                await self._vector_collection.insert_one(vector_document)
+                self._vector_collection.insert_one(vector_document)
 
             return context_item
 
@@ -162,7 +162,7 @@ class MongoContextRepository(ContextRepository):
             self.logger.error(f"Failed to add context item: {str(e)}")
             raise
 
-    async def get_by_id(self, context_id: str) -> Optional[ContextItem]:
+    def get_by_id(self, context_id: str) -> Optional[ContextItem]:
         """
         Get a context item by ID.
 
@@ -175,16 +175,16 @@ class MongoContextRepository(ContextRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Get the main document
-            document = await self._collection.find_one({"id": context_id})
+            document = self._collection.find_one({"id": context_id})
             if not document:
                 return None
 
             # Get the vector
-            vector_document = await self._vector_collection.find_one(
+            vector_document = self._vector_collection.find_one(
                 {"id": context_id})
 
             # Create the entity
@@ -199,7 +199,7 @@ class MongoContextRepository(ContextRepository):
                 f"Failed to get context item {context_id}: {str(e)}")
             raise
 
-    async def update(self, context_item: ContextItem) -> ContextItem:
+    def update(self, context_item: ContextItem) -> ContextItem:
         """
         Update a context item in the repository.
 
@@ -213,11 +213,11 @@ class MongoContextRepository(ContextRepository):
             KeyError: If the context item does not exist
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Check if the item exists
-            existing = await self._collection.find_one({"id": context_item.id})
+            existing = self._collection.find_one({"id": context_item.id})
             if not existing:
                 raise KeyError(
                     f"Context item with ID {context_item.id} not found")
@@ -226,14 +226,14 @@ class MongoContextRepository(ContextRepository):
             context_item.updated_at = datetime.now()
             document = self._entity_to_document(context_item)
 
-            result = await self._collection.update_one(
+            result = self._collection.update_one(
                 {"id": context_item.id},
                 {"$set": document}
             )
 
             # Update the vector
             if context_item.embedding:
-                await self._vector_collection.update_one(
+                self._vector_collection.update_one(
                     {"id": context_item.id},
                     {"$set": {"vector": context_item.embedding}},
                     upsert=True
@@ -248,7 +248,7 @@ class MongoContextRepository(ContextRepository):
                 f"Failed to update context item {context_item.id}: {str(e)}")
             raise
 
-    async def delete(self, context_id: str) -> bool:
+    def delete(self, context_id: str) -> bool:
         """
         Delete a context item from the repository.
 
@@ -261,14 +261,14 @@ class MongoContextRepository(ContextRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Delete the main document
-            result = await self._collection.delete_one({"id": context_id})
+            result = self._collection.delete_one({"id": context_id})
 
             # Delete the vector
-            await self._vector_collection.delete_one({"id": context_id})
+            self._vector_collection.delete_one({"id": context_id})
 
             return result.deleted_count > 0
 
@@ -277,7 +277,7 @@ class MongoContextRepository(ContextRepository):
                 f"Failed to delete context item {context_id}: {str(e)}")
             raise
 
-    async def list(self, filters: Optional[Dict[str, Any]] = None) -> List[
+    def list(self, filters: Optional[Dict[str, Any]] = None) -> List[
         ContextItem]:
         """
         List context items matching the given filters.
@@ -291,7 +291,7 @@ class MongoContextRepository(ContextRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Prepare query
@@ -306,7 +306,7 @@ class MongoContextRepository(ContextRepository):
 
             # Execute query
             cursor = self._collection.find(query)
-            documents = await cursor.to_list(length=100)  # Limit to 100 items
+            documents = cursor.to_list(length=100)  # Limit to 100 items
 
             # Convert to entities
             items = []
@@ -314,7 +314,7 @@ class MongoContextRepository(ContextRepository):
                 entity = self._document_to_entity(document)
 
                 # Get the vector if available
-                vector_document = await self._vector_collection.find_one(
+                vector_document = self._vector_collection.find_one(
                     {"id": entity.id})
                 if vector_document:
                     entity.embedding = vector_document.get("vector")
@@ -327,8 +327,8 @@ class MongoContextRepository(ContextRepository):
             self.logger.error(f"Failed to list context items: {str(e)}")
             raise
 
-    async def search_by_vector(self, query_vector: List[float],
-                               limit: int = 10) -> List[
+    def search_by_vector(self, query_vector: List[float],
+                       limit: int = 10) -> List[
         Tuple[ContextItem, float]]:
         """
         Search for context items by vector similarity.
@@ -343,7 +343,7 @@ class MongoContextRepository(ContextRepository):
         Raises:
             PyMongoError: For MongoDB errors
         """
-        await self._ensure_connection()
+        self._ensure_connection()
 
         try:
             # Use MongoDB's $vectorSearch aggregation (MongoDB 5.0+) or fall back to manual calculation
@@ -354,7 +354,6 @@ class MongoContextRepository(ContextRepository):
                         "queryVector": query_vector,
                         "path": "vector",
                         "numCandidates": limit * 10,
-                        # Search more candidates for better results
                         "limit": limit
                     }
                 },
@@ -371,12 +370,12 @@ class MongoContextRepository(ContextRepository):
             try:
                 # Try using $vectorSearch if available
                 cursor = self._vector_collection.aggregate(pipeline)
-                results = await cursor.to_list(length=limit)
+                results = list(cursor)
             except PyMongoError:
                 # Fall back to manual calculation
                 self.logger.warning(
                     "Vector search not available, falling back to manual calculation")
-                results = await self._manual_vector_search(query_vector, limit)
+                results = self._manual_vector_search(query_vector, limit)
 
             # Fetch the full items for each result
             items_with_scores = []
@@ -385,7 +384,7 @@ class MongoContextRepository(ContextRepository):
                 score = result.get("score", 0.0)
 
                 # Get the full item
-                document = await self._collection.find_one({"id": item_id})
+                document = self._collection.find_one({"id": item_id})
                 if document:
                     entity = self._document_to_entity(document)
                     entity.embedding = result.get("vector")
@@ -397,8 +396,8 @@ class MongoContextRepository(ContextRepository):
             self.logger.error(f"Failed to search by vector: {str(e)}")
             raise
 
-    async def _manual_vector_search(self, query_vector: List[float],
-                                    limit: int) -> List[Dict[str, Any]]:
+    def _manual_vector_search(self, query_vector: List[float],
+                            limit: int) -> List[Dict[str, Any]]:
         """
         Perform manual vector similarity search.
 
@@ -416,7 +415,7 @@ class MongoContextRepository(ContextRepository):
         # Get all vectors
         cursor = self._vector_collection.find({},
                                               {"_id": 0, "id": 1, "vector": 1})
-        all_vectors = await cursor.to_list(length=1000)  # Limit to 1000 items
+        all_vectors = cursor.to_list(length=1000)  # Limit to 1000 items
 
         # Convert query vector to numpy array
         query_array = np.array(query_vector)
