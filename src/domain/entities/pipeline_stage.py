@@ -88,3 +88,19 @@ class PipelineStage(ABC):
             True if the transition is valid, False otherwise
         """
         pass
+
+    @abstractmethod
+    def validate_transition_from_name(self, previous_stage_name: Optional[
+        str]) -> bool:
+        """
+        Validate if this stage can be executed after a stage with the given name.
+
+        This allows for validation without requiring a concrete instance of the previous stage.
+
+        Args:
+            previous_stage_name: The name of the previous stage in the pipeline
+
+        Returns:
+            True if the transition is valid, False otherwise
+        """
+        pass

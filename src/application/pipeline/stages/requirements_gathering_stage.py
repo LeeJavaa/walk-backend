@@ -39,3 +39,17 @@ class RequirementsGatheringStage(PipelineStage):
         """
         # This is the first stage, so it can only be executed if there is no previous stage
         return previous_stage is None
+
+    def validate_transition_from_name(self, previous_stage_name: Optional[
+        str]) -> bool:
+        """
+        Validate if this stage can be executed after a stage with the given name.
+
+        Args:
+            previous_stage_name: The name of the previous stage in the pipeline
+
+        Returns:
+            True if the transition is valid, False otherwise
+        """
+        # This stage can only be executed at the start
+        return previous_stage_name == ""

@@ -47,3 +47,17 @@ class ReviewStage(PipelineStage):
         # This stage can only be executed after the implementation writing stage
         return (previous_stage is not None and
                 previous_stage.__class__.__name__ == "ImplementationWritingStage")
+
+    def validate_transition_from_name(self, previous_stage_name: Optional[
+        str]) -> bool:
+        """
+        Validate if this stage can be executed after a stage with the given name.
+
+        Args:
+            previous_stage_name: The name of the previous stage in the pipeline
+
+        Returns:
+            True if the transition is valid, False otherwise
+        """
+        # This stage can only be executed after the implementation writing stage
+        return previous_stage_name == "implementation_writing"

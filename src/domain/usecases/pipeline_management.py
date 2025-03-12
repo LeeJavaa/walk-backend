@@ -100,7 +100,7 @@ class ExecutePipelineStageUseCase:
             -1] if pipeline_state.stages_completed else None
 
         # Validate stage transition if this is not the first stage
-        if previous_stage_name and not stage.validate_transition_from(
+        if previous_stage_name and not stage.validate_transition_from_name(
                 previous_stage_name):
             raise ValueError(
                 f"Invalid stage transition from {previous_stage_name} to {stage.name}")
