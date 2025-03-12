@@ -17,6 +17,7 @@ from src.application.pipeline.stages.implementation_planning_stage import \
 from src.application.pipeline.stages.implementation_writing_stage import \
     ImplementationWritingStage
 from src.application.pipeline.stages.review_stage import ReviewStage
+from src.domain.ports.llm_provider import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +31,13 @@ STAGE_REGISTRY: Dict[str, Type[PipelineStage]] = {
 }
 
 
-def create_pipeline_stage(stage_name: str) -> Optional[PipelineStage]:
+def create_pipeline_stage(stage_name: str, llm_provider: Optional[LLMProvider] = None) -> Optional[PipelineStage]:
     """
     Create a pipeline stage instance based on the stage name.
 
     Args:
         stage_name: Name of the stage to create
+        llm_provider: LLM provider instance for stages that require it
 
     Returns:
         A pipeline stage instance or None if the stage name is invalid
@@ -47,4 +49,12 @@ def create_pipeline_stage(stage_name: str) -> Optional[PipelineStage]:
         return None
 
     stage_id = str(uuid4())
+
+    # Create stage instance with LLM provider if the stage requires it
+    if stage_class in [RequirementsGatheringStage]:  # Add other stages here as they are updated
+        if not llm_provider:
+            logger.error(f"LLM provider required for stage: {stage_name}")
+            return None
+        return stage_class(id=stage_id, name=stage_name, llm_provider=llm_provider)
+    
     return stage_class(id=stage_id, name=stage_name)

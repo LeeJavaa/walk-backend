@@ -369,3 +369,28 @@ def format_feedback(feedback_item: Dict[str, Any]) -> str:
         f"Incorporated: {feedback_item.get('incorporated', False)}\n"
         f"Content:\n{feedback_item.get('content', '')}\n"
     )
+
+
+def format_rag_response(response: str) -> str:
+    """
+    Format the RAG query response for display.
+
+    Args:
+        response: Response text from the RAG service
+
+    Returns:
+        Formatted response string
+    """
+    # Add a header with styling
+    header = click.style("📚 Response from Knowledge Base", fg="blue", bold=True)
+    
+    # Add a separator line
+    separator = click.style("─" * 50, fg="blue")
+    
+    # Style the response text - preserve line breaks but add indentation
+    formatted_response = "\n".join(
+        "  " + line for line in response.split("\n")
+    )
+    
+    # Combine all parts with proper spacing
+    return f"{header}\n{separator}\n{formatted_response}\n{separator}"

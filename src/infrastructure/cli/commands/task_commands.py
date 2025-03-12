@@ -8,14 +8,17 @@ from src.infrastructure.cli.utils.dependency_container import (
     create_pipeline_use_case,
     create_execute_pipeline_stage_use_case,
     create_rollback_pipeline_use_case,
-    create_get_pipeline_state_use_case
+    create_rag_service,
+    create_get_pipeline_state_use_case,
+    create_openai_adapter
 )
 from src.infrastructure.cli.utils.output_formatter import (
     format_success,
     format_error,
     format_task_list,
     format_task_detail,
-    format_pipeline_state
+    format_pipeline_state,
+    format_rag_response
 )
 
 logger = logging.getLogger(__name__)
@@ -166,9 +169,12 @@ def execute_task(pipeline_state_id: str, stage: str,
                 f"Pipeline state with ID {pipeline_state_id} not found"))
             return
 
+        # Get the LLM provider
+        openai_adapter = create_openai_adapter()
+
         # Create the appropriate stage instance
         from src.application.pipeline.stage_factory import create_pipeline_stage
-        stage_instance = create_pipeline_stage(stage)
+        stage_instance = create_pipeline_stage(stage, llm_provider=openai_adapter)
 
         if not stage_instance:
             valid_stages = ", ".join(current_state.PIPELINE_STAGES)
@@ -243,4 +249,17 @@ def get_task_status(pipeline_state_id: str):
     except Exception as e:
         click.echo(format_error(f"Error getting task status: {str(e)}"))
         logger.exception("Error in get_task_status command")
+        raise click.Abort()
+
+@task_group.command(name="query")
+@click.option("--text", "-t", required=True, help="Query text")
+def query_context(text: str):
+    """Query the system using RAG to get information."""
+    try:
+        rag_service = create_rag_service()
+        response = rag_service.generate_with_context(text)
+        click.echo(format_rag_response(response))
+    except Exception as e:
+        click.echo(format_error(f"Error querying: {str(e)}"))
+        logger.exception("Error in query_context command")
         raise click.Abort()
