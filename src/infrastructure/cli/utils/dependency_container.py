@@ -4,7 +4,6 @@ Dependency container for the CLI.
 This module provides factory functions for creating use cases and services
 with their dependencies.
 """
-import os
 import logging
 from typing import Optional
 
@@ -59,7 +58,7 @@ def create_mongodb_connection() -> MongoDBConnection:
 
     if _mongodb_connection is None:
         # Get connection details from environment or config
-        from config import MONGODB_URI, MONGODB_DB_NAME
+        from src.config import MONGODB_URI, MONGODB_DB_NAME
 
         logger.info(
             f"Creating MongoDB connection to {MONGODB_URI} using database {MONGODB_DB_NAME}")
@@ -74,7 +73,7 @@ def create_openai_adapter() -> OpenAIAdapter:
 
     if _openai_adapter is None:
         # Get API key and model from environment or config
-        from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_EMBEDDING_MODEL
+        from src.config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_EMBEDDING_MODEL
 
         logger.info(f"Creating OpenAI adapter using model {OPENAI_MODEL}")
         _openai_adapter = OpenAIAdapter(
@@ -149,7 +148,7 @@ def create_rag_service() -> RAGService:
     global _rag_service
 
     if _rag_service is None:
-        from config import VECTOR_SIMILARITY_THRESHOLD, MAX_CONTEXT_ITEMS
+        from src.config import VECTOR_SIMILARITY_THRESHOLD, MAX_CONTEXT_ITEMS
 
         context_repository = create_context_repository()
         openai_adapter = create_openai_adapter()

@@ -6,7 +6,7 @@ from pathlib import Path
 load_dotenv()
 
 # Base directories
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 
 # Create data directory if it doesn't exist

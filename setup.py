@@ -25,7 +25,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "walk=walk_backend.src.infrastructure.cli.main:main",
+            "walk=src.infrastructure.cli.main:main",
         ],
     },
 )
