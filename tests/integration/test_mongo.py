@@ -341,8 +341,8 @@ def test_repository_hexagonal_architecture_compliance():
         PipelineRepository as PipelineRepositoryInterface
 
     # Check that our implementations satisfy the interface contracts
-    assert isinstance(MongoContextRepository, ContextRepositoryInterface)
-    assert isinstance(MongoPipelineRepository, PipelineRepositoryInterface)
+    assert issubclass(MongoContextRepository, ContextRepositoryInterface)
+    assert issubclass(MongoPipelineRepository, PipelineRepositoryInterface)
 
     # Verify all required methods are implemented
     for method_name in ["add", "get_by_id", "update", "delete", "list",

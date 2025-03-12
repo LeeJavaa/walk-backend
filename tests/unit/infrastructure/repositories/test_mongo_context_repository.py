@@ -39,12 +39,12 @@ class TestMongoContextRepository:
 
         # For find
         cursor_mock = MagicMock()
-        cursor_mock.to_list.return_value = []
+        cursor_mock.__iter__.return_value = []
         collection.find = MagicMock(return_value=cursor_mock)
 
         # For aggregate
         agg_cursor_mock = MagicMock()
-        agg_cursor_mock.to_list.return_value = []
+        agg_cursor_mock.__iter__.return_value = []
         collection.aggregate = MagicMock(return_value=agg_cursor_mock)
 
         # Other operations
@@ -330,7 +330,7 @@ class TestMongoContextRepository:
             }
         ]
 
-        mock_vector_collection.aggregate.return_value.to_list.return_value = mock_search_results
+        mock_vector_collection.aggregate.return_value.__iter__.return_value = mock_search_results
 
         def mock_find_one_side_effect(query):
             item_id = query["id"]

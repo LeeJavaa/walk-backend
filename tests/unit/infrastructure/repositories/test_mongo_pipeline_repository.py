@@ -336,7 +336,7 @@ class TestMongoPipelineRepository:
 
         # Set up the mock chain
         cursor_mock = MagicMock()
-        cursor_mock.__iter__.return_value = [mock_document]
+        cursor_mock.__iter__.return_value = [mock_documents[1]]
         mock_states_collection.find.return_value = cursor_mock
         cursor_mock.sort.return_value = cursor_mock
         cursor_mock.limit.return_value = cursor_mock

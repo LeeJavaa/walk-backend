@@ -67,7 +67,6 @@ class MongoContextRepository(ContextRepository):
 
             # Vector collection indexes
             self._vector_collection.create_index("id", unique=True)
-            self._vector_collection.create_index([("vector", "2dsphere")])
         except PyMongoError as e:
             self.logger.warning(f"Failed to create indexes: {str(e)}")
 
@@ -371,6 +370,12 @@ class MongoContextRepository(ContextRepository):
                 # Try using $vectorSearch if available
                 cursor = self._vector_collection.aggregate(pipeline)
                 results = list(cursor)
+
+                if not results:
+                    self.logger.warning(
+                        "Vector search returned empty results, falling back to manual calculation")
+                    results = self._manual_vector_search(query_vector, limit)
+
             except PyMongoError:
                 # Fall back to manual calculation
                 self.logger.warning(
@@ -415,7 +420,7 @@ class MongoContextRepository(ContextRepository):
         # Get all vectors
         cursor = self._vector_collection.find({},
                                               {"_id": 0, "id": 1, "vector": 1})
-        all_vectors = cursor.to_list(length=1000)  # Limit to 1000 items
+        all_vectors = list(cursor)
 
         # Convert query vector to numpy array
         query_array = np.array(query_vector)
