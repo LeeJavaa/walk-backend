@@ -126,7 +126,14 @@ def list_tasks(status: Optional[str] = None):
         if not tasks:
             click.echo("No tasks found.")
         else:
-            click.echo(format_task_list(tasks))
+            # Get the latest pipeline state ID for each task
+            task_states = {}
+            for task in tasks:
+                latest_state = repo.get_latest_pipeline_state(task.id)
+                if latest_state:
+                    task_states[task.id] = latest_state.id
+
+            click.echo(format_task_list(tasks, task_states))
 
     except Exception as e:
         click.echo(format_error(f"Error listing tasks: {str(e)}"))

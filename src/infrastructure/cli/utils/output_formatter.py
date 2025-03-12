@@ -197,12 +197,13 @@ def format_task_detail(task: Task) -> Dict[str, Any]:
     }
 
 
-def format_task_list(tasks: List[Task]) -> str:
+def format_task_list(tasks: List[Task], task_states: Dict[str, str] = None) -> str:
     """
     Format a list of tasks for display.
 
     Args:
         tasks: List of tasks to format
+        task_states: Dictionary mapping task IDs to their latest pipeline state IDs
 
     Returns:
         Formatted list of tasks
@@ -211,7 +212,7 @@ def format_task_list(tasks: List[Task]) -> str:
         return "No tasks found."
 
     # Create a table-like output
-    headers = ["ID", "Description", "Status", "Created"]
+    headers = ["ID", "Description", "Status", "Pipeline State", "Created"]
     rows = []
 
     # Choose colors for different statuses
@@ -222,39 +223,50 @@ def format_task_list(tasks: List[Task]) -> str:
         "failed": "red"
     }
 
+    task_states = task_states or {}
+
+    # First pass: collect all rows to calculate proper column widths
+    formatted_rows = []
     for task in tasks:
         status_color = status_colors.get(task.status, "white")
-
-        rows.append([
+        pipeline_state_id = task_states.get(task.id, "None")
+        
+        # Store the actual values that will be displayed
+        formatted_row = [
             task.id,
-            task.description[:50] + (
-                "..." if len(task.description) > 50 else ""),
-            click.style(task.status, fg=status_color),
+            task.description[:50] + ("..." if len(task.description) > 50 else ""),
+            task.status,  # Store raw status for width calculation
+            pipeline_state_id,
             task.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        ])
+        ]
+        formatted_rows.append(formatted_row)
 
-    # Calculate column widths
+    # Calculate column widths based on both headers and actual content
     col_widths = [
-        max(len(headers[i]), max(len(str(row[i])) for row in rows))
+        max(len(headers[i]), max(len(str(row[i])) for row in formatted_rows))
         for i in range(len(headers))
     ]
 
-    # Format the headers
+    # Format the headers with proper padding
     header_row = " | ".join(
         click.style(headers[i].ljust(col_widths[i]), bold=True)
         for i in range(len(headers))
     )
 
-    # Format the separator
+    # Format the separator matching the exact width
     separator = "-+-".join("-" * width for width in col_widths)
 
-    # Format the data rows
+    # Format the data rows with colors and proper padding
     data_rows = []
-    for row in rows:
-        data_rows.append(" | ".join(
-            str(row[i]).ljust(col_widths[i])
-            for i in range(len(row))
-        ))
+    for row in formatted_rows:
+        colored_row = [
+            str(row[0]).ljust(col_widths[0]),  # ID
+            str(row[1]).ljust(col_widths[1]),  # Description
+            click.style(str(row[2]).ljust(col_widths[2]), fg=status_colors.get(row[2], "white")),  # Status
+            click.style(str(row[3]).ljust(col_widths[3]), fg="blue") if row[3] != "None" else "None".ljust(col_widths[3]),  # Pipeline State
+            str(row[4]).ljust(col_widths[4])   # Created
+        ]
+        data_rows.append(" | ".join(colored_row))
 
     # Combine everything
     return "\n".join([header_row, separator] + data_rows)
@@ -298,10 +310,17 @@ def format_pipeline_state(state: PipelineState) -> str:
 
     checkpoint_str = "\n".join(checkpoints) if checkpoints else "No checkpoints"
 
-    # Format artifacts information
+    # Format artifacts information with truncated values
     artifacts = []
     for stage, artifact in state.artifacts.items():
-        artifacts.append(f"- {stage}: {list(artifact.keys())}")
+        artifact_details = []
+        for key, value in artifact.items():
+            # Convert value to string and truncate if needed
+            value_str = str(value)
+            if len(value_str) > 50:
+                value_str = value_str[:30] + "..."
+            artifact_details.append(f"{key}: {value_str}")
+        artifacts.append(f"- {stage}:\n    " + "\n    ".join(artifact_details))
 
     artifact_str = "\n".join(artifacts) if artifacts else "No artifacts"
 
