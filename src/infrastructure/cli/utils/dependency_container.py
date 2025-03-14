@@ -7,6 +7,7 @@ with their dependencies.
 import logging
 from typing import Optional
 
+from src.domain.ports.llm_provider import LLMProvider
 from src.domain.usecases.context_management import (
     AddContextUseCase,
     RemoveContextUseCase,
@@ -83,6 +84,15 @@ def create_openai_adapter() -> OpenAIAdapter:
         )
 
     return _openai_adapter
+
+
+def create_llm_provider() -> LLMProvider:
+    """Create or get the LLM provider.
+
+    This is a convenience function that returns the OpenAI adapter,
+    but in the future could switch between different LLM providers.
+    """
+    return create_openai_adapter()
 
 
 def create_file_system_adapter() -> FileSystemAdapter:
@@ -257,3 +267,32 @@ def create_incorporate_feedback_use_case() -> IncorporateFeedbackUseCase:
     pipeline_repository = create_pipeline_repository()
 
     return IncorporateFeedbackUseCase(pipeline_repository=pipeline_repository)
+
+
+def create_pipeline_stage_with_dependencies(stage_name: str):
+    """
+    Create a pipeline stage with all required dependencies injected.
+
+    This is a convenience function that uses the application layer's
+    create_pipeline_stage function but injects infrastructure dependencies.
+
+    Args:
+        stage_name: Name of the stage to create
+
+    Returns:
+        Initialized pipeline stage instance with injected dependencies
+    """
+    from src.application.pipeline.stage_factory import create_pipeline_stage
+
+    # Get the required dependencies for the stage
+    llm_provider = create_llm_provider()
+    context_repository = create_context_repository()
+    rag_service = create_rag_service()
+
+    # Create the stage with all required dependencies
+    return create_pipeline_stage(
+        stage_name=stage_name,
+        llm_provider=llm_provider,
+        context_repository=context_repository,
+        rag_service=rag_service
+    )

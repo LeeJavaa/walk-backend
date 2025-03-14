@@ -7,19 +7,15 @@ import logging
 from typing import Optional, Dict, Type
 from uuid import uuid4
 
-from src.application.services import RAGService
 from src.domain.entities.pipeline_stage import PipelineStage
-from src.application.pipeline.stages.requirements_gathering_stage import \
-    RequirementsGatheringStage
-from src.application.pipeline.stages.knowledge_gathering_stage import \
-    KnowledgeGatheringStage
-from src.application.pipeline.stages.implementation_planning_stage import \
-    ImplementationPlanningStage
-from src.application.pipeline.stages.implementation_writing_stage import \
-    ImplementationWritingStage
-from src.application.pipeline.stages.review_stage import ReviewStage
-from src.domain.ports.context_repository import ContextRepository
 from src.domain.ports.llm_provider import LLMProvider
+from src.domain.ports.context_repository import ContextRepository
+from src.application.services.rag_service import RAGService
+from src.application.pipeline.stages.requirements_gathering_stage import RequirementsGatheringStage
+from src.application.pipeline.stages.knowledge_gathering_stage import KnowledgeGatheringStage
+from src.application.pipeline.stages.implementation_planning_stage import ImplementationPlanningStage
+from src.application.pipeline.stages.implementation_writing_stage import ImplementationWritingStage
+from src.application.pipeline.stages.review_stage import ReviewStage
 
 logger = logging.getLogger(__name__)
 
@@ -59,46 +55,41 @@ def create_pipeline_stage(
 
     stage_id = str(uuid4())
 
-    # Create stage instance with LLM provider if the stage requires it
-    if stage_class in [RequirementsGatheringStage]:  # Add other stages here as they are updated
+    # Create stage instance based on stage requirements
+    if stage_name == "requirements_gathering":
         if not llm_provider:
             logger.error(f"LLM provider required for stage: {stage_name}")
             return None
-        return stage_class(id=stage_id, name=stage_name, llm_provider=llm_provider)
-    elif stage_class in [KnowledgeGatheringStage, ImplementationPlanningStage, ImplementationWritingStage]:
-        if not llm_provider:
-            logger.error(f"LLM provider required for stage: {stage_name}")
+        return RequirementsGatheringStage(
+            id=stage_id,
+            name=stage_name,
+            llm_provider=llm_provider
+        )
+
+    elif stage_name in ["knowledge_gathering", "implementation_planning", "implementation_writing"]:
+        if not all([llm_provider, context_repository, rag_service]):
+            logger.error(f"Missing dependencies for stage: {stage_name}")
             return None
 
-        if not context_repository:
-            logger.error(f"Context repository required for stage: {stage_name}")
-            return None
-
-        if not rag_service:
-            logger.error(f"RAG service required for stage: {stage_name}")
-            return None
-
-        return stage_class(
+        return STAGE_REGISTRY[stage_name](
             id=stage_id,
             name=stage_name,
             llm_provider=llm_provider,
             context_repository=context_repository,
-            rag_service=rag_service,
+            rag_service=rag_service
         )
-    elif stage_class in [ReviewStage]:
-        if not llm_provider:
-            logger.error(f"LLM provider required for stage: {stage_name}")
+
+    elif stage_name == "review":
+        if not all([llm_provider, rag_service]):
+            logger.error(f"Missing dependencies for stage: {stage_name}")
             return None
 
-        if not rag_service:
-            logger.error(f"RAG service required for stage: {stage_name}")
-            return None
-
-        return stage_class(
+        return ReviewStage(
             id=stage_id,
             name=stage_name,
             llm_provider=llm_provider,
-            rag_service=rag_service,
+            rag_service=rag_service
         )
-    
+
+    # Default case (should not be reached with proper registry)
     return stage_class(id=stage_id, name=stage_name)

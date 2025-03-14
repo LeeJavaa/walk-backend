@@ -10,7 +10,8 @@ from src.infrastructure.cli.utils.dependency_container import (
     create_rollback_pipeline_use_case,
     create_rag_service,
     create_get_pipeline_state_use_case,
-    create_openai_adapter, create_context_repository
+    create_openai_adapter, create_context_repository,
+    create_pipeline_stage_with_dependencies,
 )
 from src.infrastructure.cli.utils.output_formatter import (
     format_success,
@@ -169,21 +170,7 @@ def execute_task(pipeline_state_id: str, stage: str,
                 f"Pipeline state with ID {pipeline_state_id} not found"))
             return
 
-        # Get the LLM provider
-        openai_adapter = create_openai_adapter()
-        # Get the Context repository
-        mongo_context_repository = create_context_repository()
-        # Get the RAG service
-        rag_service = create_rag_service()
-
-        # Create the appropriate stage instance
-        from src.application.pipeline.stage_factory import create_pipeline_stage
-        stage_instance = create_pipeline_stage(
-            stage,
-            llm_provider=openai_adapter,
-            context_repository=mongo_context_repository,
-            rag_service=rag_service,
-        )
+        stage_instance = create_pipeline_stage_with_dependencies(stage)
 
         if not stage_instance:
             valid_stages = ", ".join(current_state.PIPELINE_STAGES)
