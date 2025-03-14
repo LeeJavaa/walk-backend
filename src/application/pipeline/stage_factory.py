@@ -65,7 +65,7 @@ def create_pipeline_stage(
             logger.error(f"LLM provider required for stage: {stage_name}")
             return None
         return stage_class(id=stage_id, name=stage_name, llm_provider=llm_provider)
-    elif stage_class in [KnowledgeGatheringStage]:
+    elif stage_class in [KnowledgeGatheringStage, ImplementationPlanningStage]:
         if not llm_provider:
             logger.error(f"LLM provider required for stage: {stage_name}")
             return None
