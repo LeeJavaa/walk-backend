@@ -73,6 +73,53 @@ class CodeArtifact:
         self.created_at = created_at or datetime.now()
         self.updated_at = updated_at or datetime.now()
 
+    # Add to your CodeArtifact class in src/domain/entities/code_artifact.py
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the code artifact to a dictionary for serialization.
+
+        Returns:
+            Dictionary representation of the code artifact
+        """
+        return {
+            "id": self.id,
+            "task_id": self.task_id,
+            "content": self.content,
+            "artifact_type": self.artifact_type.value,  # Convert enum to string
+            "language": self.language,
+            "path": self.path,
+            "metadata": self.metadata,
+            "quality_metrics": self.quality_metrics,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        }
+
+    # Add to your CodeArtifact class in src/domain/entities/code_artifact.py
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CodeArtifact':
+        """
+        Create a code artifact from a dictionary.
+
+        Args:
+            data: Dictionary with artifact data
+
+        Returns:
+            CodeArtifact instance
+        """
+        return cls(
+            id=data["id"],
+            task_id=data["task_id"],
+            content=data["content"],
+            artifact_type=CodeArtifactType(data["artifact_type"]),
+            # Convert string back to enum
+            language=data["language"],
+            path=data.get("path"),
+            metadata=data.get("metadata", {}),
+            quality_metrics=data.get("quality_metrics", {}),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at")
+        )
+
     @staticmethod
     def validate_content(content: str) -> None:
         """
