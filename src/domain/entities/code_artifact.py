@@ -94,7 +94,6 @@ class CodeArtifact:
             "updated_at": self.updated_at
         }
 
-    # Add to your CodeArtifact class in src/domain/entities/code_artifact.py
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CodeArtifact':
         """

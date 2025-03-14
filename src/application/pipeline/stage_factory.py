@@ -85,5 +85,20 @@ def create_pipeline_stage(
             context_repository=context_repository,
             rag_service=rag_service,
         )
+    elif stage_class in [ReviewStage]:
+        if not llm_provider:
+            logger.error(f"LLM provider required for stage: {stage_name}")
+            return None
+
+        if not rag_service:
+            logger.error(f"RAG service required for stage: {stage_name}")
+            return None
+
+        return stage_class(
+            id=stage_id,
+            name=stage_name,
+            llm_provider=llm_provider,
+            rag_service=rag_service,
+        )
     
     return stage_class(id=stage_id, name=stage_name)
