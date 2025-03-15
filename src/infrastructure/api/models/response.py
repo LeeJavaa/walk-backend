@@ -97,6 +97,7 @@ class PipelineProgress(BaseModel):
     completed_stages: List[str]
     total_stages: int
     percentage: float
+    status: str = Field(..., description="Current execution status (executing/completed)")
 
 class Checkpoint(BaseModel):
     """Checkpoint information."""

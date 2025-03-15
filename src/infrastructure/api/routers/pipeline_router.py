@@ -5,7 +5,7 @@ This module defines the API endpoints for pipeline execution and management.
 """
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 
 from src.infrastructure.api.models.request import ExecutePipelineRequest, \
     ExecuteStageRequest, RollbackRequest
@@ -19,7 +19,7 @@ from src.infrastructure.api.utils.dependency_injection import (
     get_rollback_pipeline_use_case,
     get_get_pipeline_state_use_case,
     get_pipeline_stage,
-    get_state_manager
+    get_state_manager, get_pipeline_repository
 )
 
 router = APIRouter()
@@ -27,33 +27,50 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/execute", response_model=APIResponse)
-def execute_pipeline(request: ExecutePipelineRequest):
+def execute_pipeline(request: ExecutePipelineRequest,
+                     background_tasks: BackgroundTasks):
     """
-    Execute the complete pipeline for a task.
+    Execute the complete pipeline for a task asynchronously.
+    Returns immediately with pipeline state ID and executes in the background.
     """
     try:
         orchestrator = get_pipeline_orchestrator()
 
-        # Execute the pipeline
-        final_state = orchestrator.execute_pipeline(
+        # Get the task
+        pipeline_repository = get_pipeline_repository()
+        task = pipeline_repository.get_task(request.task_id)
+        if not task:
+            raise HTTPException(status_code=404,
+                                detail=f"Task with ID {request.task_id} not found")
+
+        # Get or create initial pipeline state
+        if request.continue_from_current:
+            state_manager = get_state_manager()
+            state = state_manager.get_latest_pipeline_state(request.task_id)
+            if not state:
+                state = state_manager.create_initial_state(task)
+        else:
+            state_manager = get_state_manager()
+            state = state_manager.create_initial_state(task)
+
+        # Add execution to background tasks
+        background_tasks.add_task(
+            orchestrator.execute_pipeline,
             task_id=request.task_id,
-            continue_from_current=request.continue_from_current,
+            continue_from_current=True, # Has to be hard coded to use the same state as defined above, can fix in future
             create_checkpoints=request.create_checkpoints,
             wait_for_feedback=request.wait_for_feedback,
             use_transactions=request.use_transactions
         )
 
-        # Convert the pipeline state to a response model
-        response_state = _convert_pipeline_state(final_state)
-
         return APIResponse(
             success=True,
-            message="Pipeline execution completed",
+            message="Pipeline execution started",
             data={
-                "pipeline_state_id": final_state.id,
-                "task_id": final_state.task_id,
-                "current_stage": final_state.current_stage,
-                "completed_stages": final_state.stages_completed
+                "pipeline_state_id": state.id,
+                "task_id": state.task_id,
+                "current_stage": state.current_stage,
+                "status": "executing"
             }
         )
 
@@ -80,8 +97,16 @@ def get_pipeline_progress(pipeline_id: str):
     try:
         state_manager = get_state_manager()
 
+        # Get the current state
+        pipeline_state = state_manager.get_pipeline_state(pipeline_id)
+
         # Get the progress
         progress = state_manager.get_pipeline_progress(pipeline_id)
+
+        # Determine execution status (you might need to add a status field to your state)
+        status = "completed" if progress["current_stage"] == \
+                                pipeline_state.PIPELINE_STAGES[
+                                    -1] and pipeline_state.current_stage in pipeline_state.stages_completed else "executing"
 
         return APIResponse(
             success=True,
@@ -89,7 +114,8 @@ def get_pipeline_progress(pipeline_id: str):
                 current_stage=progress["current_stage"],
                 completed_stages=progress["completed_stages"],
                 total_stages=progress["total_stages"],
-                percentage=progress["percentage"]
+                percentage=progress["percentage"],
+                status=status
             )
         )
 
