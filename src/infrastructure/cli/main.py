@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from src.infrastructure.cli.commands.context_commands import context_group
 from src.infrastructure.cli.commands.task_commands import task_group
 from src.infrastructure.cli.commands.feedback_commands import feedback_group
+from src.infrastructure.cli.commands.pipeline_commands import pipeline_group
 from src.infrastructure.cli.utils.output_formatter import format_error
 
 # Configure logging
@@ -36,6 +37,7 @@ def cli(verbose: bool):
 cli.add_command(context_group)
 cli.add_command(task_group)
 cli.add_command(feedback_group)
+cli.add_command(pipeline_group)
 
 
 def main():

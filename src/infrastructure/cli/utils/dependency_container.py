@@ -7,6 +7,7 @@ with their dependencies.
 import logging
 from typing import Optional
 
+from src.domain.entities.pipeline_stage import PipelineStage
 from src.domain.ports.llm_provider import LLMProvider
 from src.domain.usecases.context_management import (
     AddContextUseCase,
@@ -36,6 +37,10 @@ from src.infrastructure.adapters.file_system_adapter import FileSystemAdapter
 
 from src.application.services.embedding_service import EmbeddingService
 from src.application.services.rag_service import RAGService
+from src.application.pipeline.executor import PipelineExecutor
+from src.application.pipeline.state_manager import StateManager
+from src.application.pipeline.feedback_manager import FeedbackManager
+from src.application.pipeline.orchestrator import PipelineOrchestrator
 
 # Connection and adapter instances
 _mongodb_connection: Optional[MongoDBConnection] = None
@@ -295,4 +300,44 @@ def create_pipeline_stage_with_dependencies(stage_name: str):
         llm_provider=llm_provider,
         context_repository=context_repository,
         rag_service=rag_service
+    )
+
+
+def create_pipeline_executor() -> PipelineExecutor:
+    """Create a PipelineExecutor instance."""
+    pipeline_repository = create_pipeline_repository()
+
+    return PipelineExecutor(pipeline_repository=pipeline_repository)
+
+
+def create_state_manager() -> StateManager:
+    """Create a StateManager instance."""
+    pipeline_repository = create_pipeline_repository()
+
+    return StateManager(pipeline_repository=pipeline_repository)
+
+
+def create_feedback_manager() -> FeedbackManager:
+    """Create a FeedbackManager instance."""
+    pipeline_repository = create_pipeline_repository()
+
+    return FeedbackManager(pipeline_repository=pipeline_repository)
+
+
+def create_pipeline_orchestrator() -> PipelineOrchestrator:
+    """Create a PipelineOrchestrator instance with all dependencies."""
+    pipeline_repository = create_pipeline_repository()
+    pipeline_executor = create_pipeline_executor()
+    state_manager = create_state_manager()
+    feedback_manager = create_feedback_manager()
+
+    def stage_factory(stage_name):
+        return create_pipeline_stage_with_dependencies(stage_name)
+
+    return PipelineOrchestrator(
+        pipeline_repository=pipeline_repository,
+        pipeline_executor=pipeline_executor,
+        state_manager=state_manager,
+        feedback_manager=feedback_manager,
+        stage_factory=stage_factory
     )
