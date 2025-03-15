@@ -94,3 +94,33 @@ class PipelineRepository(ABC):
             The latest pipeline state for the task, or None if not found
         """
         pass
+
+    @abstractmethod
+    def start_transaction(self):
+        """
+        Start a database transaction.
+
+        Returns:
+            A session object for the transaction
+        """
+        pass
+
+    @abstractmethod
+    def commit_transaction(self, session):
+        """
+        Commit a database transaction.
+
+        Args:
+            session: Session object from start_transaction
+        """
+        pass
+
+    @abstractmethod
+    def abort_transaction(self, session):
+        """
+        Abort a database transaction.
+
+        Args:
+            session: Session object from start_transaction
+        """
+        pass
