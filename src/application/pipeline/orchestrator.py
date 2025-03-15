@@ -234,6 +234,9 @@ class PipelineOrchestrator:
 
                     # Update the current index based on the new state
                     try:
+                        if all_stages[current_idx] == all_stages[-1]:
+                            break
+
                         current_idx = all_stages.index(
                             current_state.current_stage)
                     except ValueError:
