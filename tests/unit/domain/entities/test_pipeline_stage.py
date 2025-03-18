@@ -24,6 +24,13 @@ class TestPipelineStage:
             def validate_transition_from(self, previous_stage):
                 return True
 
+            def validate_transition_from_name(self, previous_stage):
+                return True
+
+            def get_next_stage_name(self):
+                return "next_stage_name"
+
+
         # Arrange
         stage_id = str(uuid4())
         stage_name = "test_stage"
@@ -34,6 +41,8 @@ class TestPipelineStage:
         assert stage.name == stage_name
         assert hasattr(stage, "execute")
         assert hasattr(stage, "validate_transition_from")
+        assert hasattr(stage, "validate_transition_from_name")
+        assert hasattr(stage, "get_next_stage_name")
 
     def test_stage_execution(self):
         """Test execution of a pipeline stage (U-PS-1)."""
@@ -49,6 +58,12 @@ class TestPipelineStage:
 
             def validate_transition_from(self, previous_stage):
                 return True
+
+            def validate_transition_from_name(self, previous_stage):
+                return True
+
+            def get_next_stage_name(self):
+                return "next_stage_name"
 
         # Arrange
         stage = TestStage(str(uuid4()), "test_stage")
@@ -83,6 +98,13 @@ class TestPipelineStage:
                 # First stage, no previous stage needed
                 return previous_stage is None
 
+            def validate_transition_from_name(self, previous_stage):
+                # First stage, no previous stage needed
+                return previous_stage == ""
+
+            def get_next_stage_name(self):
+                return "stage2"
+
         class Stage2(PipelineStage):
             def execute(self, task, state=None):
                 return PipelineStageResult(
@@ -95,14 +117,28 @@ class TestPipelineStage:
                 # Must come after Stage1
                 return isinstance(previous_stage, Stage1)
 
+            def validate_transition_from_name(self, previous_stage):
+                # First stage, no previous stage needed
+                return previous_stage == "stage1"
+
+            def get_next_stage_name(self):
+                return "stage3"
+
         # Arrange
         stage1 = Stage1(str(uuid4()), "stage1")
         stage2 = Stage2(str(uuid4()), "stage2")
-        stage3 = Stage2(str(uuid4()), "another_stage2")
+        stage3 = Stage2(str(uuid4()), "stage3")
 
         # Assert
         assert stage1.validate_transition_from(None) is True
+        assert stage1.validate_transition_from_name("") is True
         assert stage1.validate_transition_from(stage2) is False
+        assert stage1.validate_transition_from_name("stage2") is False
+        assert stage1.get_next_stage_name() == stage2.name
+
         assert stage2.validate_transition_from(stage1) is True
+        assert stage2.validate_transition_from_name("stage1") is True
         assert stage2.validate_transition_from(stage3) is False
+        assert stage2.validate_transition_from_name("stage3") is False
         assert stage2.validate_transition_from(None) is False
+        assert stage2.get_next_stage_name() == stage3.name
