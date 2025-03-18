@@ -96,6 +96,28 @@ class TestPipelineRepository:
                 # Return the state with the latest updated_at timestamp
                 return max(task_states, key=lambda state: state.updated_at)
 
+            def start_transaction(self):
+                # Mock implementation that returns a simple session object
+                return {"active": True, "id": "mock-session-123"}
+
+            def commit_transaction(self, session):
+                # Mock implementation to commit a transaction
+                if not session or not isinstance(session,
+                                                 dict) or not session.get(
+                        "active"):
+                    raise ValueError(
+                        "Invalid session or session already closed")
+                session["active"] = False
+
+            def abort_transaction(self, session):
+                # Mock implementation to abort a transaction
+                if not session or not isinstance(session,
+                                                 dict) or not session.get(
+                        "active"):
+                    raise ValueError(
+                        "Invalid session or session already closed")
+                session["active"] = False
+
         # Create a mock repository for testing
         repo = MockPipelineRepository()
 
@@ -177,3 +199,25 @@ class TestPipelineRepository:
         assert latest_state is not None
         assert latest_state.id == "state3"
         assert latest_state.current_stage == "knowledge_gathering"
+
+        # Test transaction methods
+        session = repo.start_transaction()
+        assert session is not None
+        assert session["active"] is True
+
+        # Test commit_transaction
+        repo.commit_transaction(session)
+        assert session["active"] is False
+
+        # Test invalid session handling in commit_transaction
+        with pytest.raises(ValueError):
+            repo.commit_transaction(None)
+
+        # Test abort_transaction
+        session = repo.start_transaction()
+        repo.abort_transaction(session)
+        assert session["active"] is False
+
+        # Test invalid session handling in abort_transaction
+        with pytest.raises(ValueError):
+            repo.abort_transaction(None)

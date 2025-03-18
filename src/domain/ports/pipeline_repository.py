@@ -98,7 +98,7 @@ class PipelineRepository(ABC):
     @abstractmethod
     def start_transaction(self):
         """
-        Start a database transaction.
+        Start a transaction.
 
         Returns:
             A session object for the transaction
@@ -108,7 +108,7 @@ class PipelineRepository(ABC):
     @abstractmethod
     def commit_transaction(self, session):
         """
-        Commit a database transaction.
+        Commit a transaction.
 
         Args:
             session: Session object from start_transaction
@@ -118,7 +118,7 @@ class PipelineRepository(ABC):
     @abstractmethod
     def abort_transaction(self, session):
         """
-        Abort a database transaction.
+        Abort a transaction.
 
         Args:
             session: Session object from start_transaction
