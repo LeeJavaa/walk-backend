@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
 import logging
 
+from src.domain.entities.container import Container, ContainerType
 from src.domain.entities.context_item import ContextItem, ContentType
 from src.domain.ports.context_repository import ContextRepository
 from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
@@ -17,7 +18,8 @@ class MongoContextRepository(ContextRepository):
             connection: Optional[MongoDBConnection] = None,
             db_name: Optional[str] = None,
             collection_name: str = "context_items",
-            vector_collection_name: str = "context_vectors"
+            vector_collection_name: str = "context_vectors",
+            container_collection_name: str = "containers"
     ):
         """
         Initialize the MongoDB context repository.
@@ -27,13 +29,16 @@ class MongoContextRepository(ContextRepository):
             db_name: Name of the database (optional, if connection is provided)
             collection_name: Name of the collection for context items
             vector_collection_name: Name of the collection for vector embeddings
+            container_collection_name: Name of the collection for containers
         """
         self.connection = connection
         self.db_name = db_name
         self.collection_name = collection_name
         self.vector_collection_name = vector_collection_name
+        self.container_collection_name = container_collection_name
         self._collection = None
         self._vector_collection = None
+        self._container_collection = None
         self.logger = logging.getLogger(__name__)
 
     def _ensure_connection(self) -> None:
@@ -41,18 +46,21 @@ class MongoContextRepository(ContextRepository):
         if self.connection and not self.connection.client:
             self.connection.connect()
 
-        if self._collection is None or self._vector_collection is None:
+        if self._collection is None or self._vector_collection is None or self._container_collection is None:
             if self.connection:
                 self._collection = self.connection.get_collection(
                     self.collection_name)
                 self._vector_collection = self.connection.get_collection(
                     self.vector_collection_name)
+                self._container_collection = self.connection.get_collection(
+                    self.container_collection_name)
             else:
                 # Create a new connection if one wasn't provided
                 client = pymongo.MongoClient()
                 db = client[self.db_name or "walk"]
                 self._collection = db[self.collection_name]
                 self._vector_collection = db[self.vector_collection_name]
+                self._container_collection = db[self.container_collection_name]
 
         # Create indexes if they don't exist
         self._ensure_indexes()
@@ -64,9 +72,16 @@ class MongoContextRepository(ContextRepository):
             self._collection.create_index("id", unique=True)
             self._collection.create_index("content_type")
             self._collection.create_index("source")
+            self._collection.create_index(
+                "container_id")  # For container queries
 
             # Vector collection indexes
             self._vector_collection.create_index("id", unique=True)
+
+            # Container collection indexes
+            self._container_collection.create_index("id", unique=True)
+            self._container_collection.create_index("name", unique=True)
+            self._container_collection.create_index("container_type")
         except PyMongoError as e:
             self.logger.warning(f"Failed to create indexes: {str(e)}")
 
@@ -86,6 +101,12 @@ class MongoContextRepository(ContextRepository):
             "content": entity.content,
             "content_type": entity.content_type,
             "metadata": entity.metadata,
+            "container_id": entity.container_id,
+            "is_container_root": entity.is_container_root,
+            "parent_id": entity.parent_id,
+            "is_chunk": entity.is_chunk,
+            "chunk_type": entity.chunk_type,
+            "chunk_metadata": entity.chunk_metadata,
             "created_at": entity.created_at,
             "updated_at": entity.updated_at
         }
@@ -120,8 +141,79 @@ class MongoContextRepository(ContextRepository):
             metadata=document.get("metadata", {}),
             embedding=None,  # Embeddings are stored separately
             created_at=document.get("created_at"),
+            updated_at=document.get("updated_at"),
+            container_id=document.get("container_id"),
+            is_container_root=document.get("is_container_root", False),
+            parent_id=document.get("parent_id"),
+            is_chunk=document.get("is_chunk", False),
+            chunk_type=document.get("chunk_type"),
+            chunk_metadata=document.get("chunk_metadata", {})
+        )
+
+    def _container_to_document(self, container: Container) -> Dict[str, Any]:
+        """
+        Convert a Container entity to a MongoDB document.
+
+        Args:
+            container: Container to convert
+
+        Returns:
+            MongoDB document representation
+        """
+        return {
+            "id": container.id,
+            "name": container.name,
+            "title": container.title,
+            "container_type": container.container_type.value,
+            # Store enum as string
+            "source_path": container.source_path,
+            "description": container.description,
+            "priority": container.priority,
+            "created_at": container.created_at,
+            "updated_at": container.updated_at,
+            "context_item_ids": list(container._context_item_ids)
+            # Store item IDs
+        }
+
+    def _document_to_container(self, document: Dict[str, Any]) -> Container:
+        """
+        Convert a MongoDB document to a Container entity.
+
+        Args:
+            document: MongoDB document
+
+        Returns:
+            Container entity
+        """
+        if not document:
+            return None
+
+        # Handle the ObjectId
+        if "_id" in document:
+            document.pop("_id")
+
+        # Convert container_type string to enum if it's a string
+        container_type = document["container_type"]
+        if isinstance(container_type, str):
+            content_type = ContainerType(container_type)
+
+        container = Container(
+            id=document["id"],
+            name=document["name"],
+            title=document["title"],
+            container_type=container_type,
+            source_path=document["source_path"],
+            description=document.get("description", ""),
+            priority=document.get("priority", 5),
+            created_at=document.get("created_at"),
             updated_at=document.get("updated_at")
         )
+
+        # Restore context item IDs
+        for item_id in document.get("context_item_ids", []):
+            container._context_item_ids.add(item_id)
+
+        return container
 
     def add(self, context_item: ContextItem) -> ContextItem:
         """
@@ -454,3 +546,213 @@ class MongoContextRepository(ContextRepository):
 
         # Return top results
         return results[:limit]
+
+    def add_container(self, container: Container) -> Container:
+        """
+        Add a container to the repository.
+
+        Args:
+            container: The container to add
+
+        Returns:
+            The added container
+
+        Raises:
+            DuplicateKeyError: If a container with the same ID or name already exists
+            PyMongoError: For other MongoDB errors
+        """
+        self._ensure_connection()
+
+        try:
+            # Store the container document
+            document = self._container_to_document(container)
+            self._container_collection.insert_one(document)
+
+            return container
+
+        except DuplicateKeyError:
+            self.logger.error(
+                f"Container with ID {container.id} or name {container.name} already exists")
+            raise
+        except PyMongoError as e:
+            self.logger.error(f"Failed to add container: {str(e)}")
+            raise
+
+    def get_container(self, container_id: str) -> Optional[Container]:
+        """
+        Get a container by ID.
+
+        Args:
+            container_id: ID of the container to retrieve
+
+        Returns:
+            The container, or None if not found
+
+        Raises:
+            PyMongoError: For MongoDB errors
+        """
+        self._ensure_connection()
+
+        try:
+            # Get the container document
+            document = self._container_collection.find_one({"id": container_id})
+            if not document:
+                return None
+
+            # Convert to entity
+            return self._document_to_container(document)
+
+        except PyMongoError as e:
+            self.logger.error(
+                f"Failed to get container {container_id}: {str(e)}")
+            raise
+
+    def update_container(self, container: Container) -> Container:
+        """
+        Update a container in the repository.
+
+        Args:
+            container: The container to update
+
+        Returns:
+            The updated container
+
+        Raises:
+            KeyError: If the container does not exist
+            PyMongoError: For MongoDB errors
+        """
+        self._ensure_connection()
+
+        try:
+            # Check if the container exists
+            existing = self._container_collection.find_one({"id": container.id})
+            if not existing:
+                raise KeyError(f"Container with ID {container.id} not found")
+
+            # Update the container
+            container.updated_at = datetime.now()
+            document = self._container_to_document(container)
+
+            result = self._container_collection.update_one(
+                {"id": container.id},
+                {"$set": document}
+            )
+
+            return container
+
+        except KeyError:
+            raise
+        except PyMongoError as e:
+            self.logger.error(
+                f"Failed to update container {container.id}: {str(e)}")
+            raise
+
+    def delete_container(self, container_id: str) -> bool:
+        """
+        Delete a container from the repository.
+
+        Args:
+            container_id: ID of the container to delete
+
+        Returns:
+            True if the container was deleted, False otherwise
+
+        Raises:
+            PyMongoError: For MongoDB errors
+        """
+        self._ensure_connection()
+
+        try:
+            # Delete the container
+            result = self._container_collection.delete_one({"id": container_id})
+
+            return result.deleted_count > 0
+
+        except PyMongoError as e:
+            self.logger.error(
+                f"Failed to delete container {container_id}: {str(e)}")
+            raise
+
+    def list_containers(self, filters: Optional[Dict[str, Any]] = None) -> List[
+        Container]:
+        """
+        List containers matching the given filters.
+
+        Args:
+            filters: Optional filters for the query
+
+        Returns:
+            List of containers matching the filters
+
+        Raises:
+            PyMongoError: For MongoDB errors
+        """
+        self._ensure_connection()
+
+        try:
+            # Prepare query
+            query = {}
+            if filters:
+                for key, value in filters.items():
+                    # Handle special case for container_type enum
+                    if key == "container_type" and isinstance(value,
+                                                              ContainerType):
+                        query[key] = value.value
+                    else:
+                        query[key] = value
+
+            # Execute query
+            cursor = self._container_collection.find(query)
+            documents = cursor.to_list(length=100)  # Limit to 100 items
+
+            # Convert to entities
+            containers = []
+            for document in documents:
+                container = self._document_to_container(document)
+                containers.append(container)
+
+            return containers
+
+        except PyMongoError as e:
+            self.logger.error(f"Failed to list containers: {str(e)}")
+            raise
+
+    def list_by_container(self, container_id: str) -> List[ContextItem]:
+        """
+        List all context items belonging to a specific container.
+
+        Args:
+            container_id: ID of the container to list items for
+
+        Returns:
+            List of context items in the specified container
+
+        Raises:
+            PyMongoError: For MongoDB errors
+        """
+        self._ensure_connection()
+
+        try:
+            # Query items by container_id
+            cursor = self._collection.find({"container_id": container_id})
+            documents = cursor.to_list(length=100)  # Limit to 100 items
+
+            # Convert to entities
+            items = []
+            for document in documents:
+                entity = self._document_to_entity(document)
+
+                # Get the vector if available
+                vector_document = self._vector_collection.find_one(
+                    {"id": entity.id})
+                if vector_document:
+                    entity.embedding = vector_document.get("vector")
+
+                items.append(entity)
+
+            return items
+
+        except PyMongoError as e:
+            self.logger.error(
+                f"Failed to list items for container {container_id}: {str(e)}")
+            raise
