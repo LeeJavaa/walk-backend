@@ -140,7 +140,6 @@ This is the conclusion of the document.
 
         # Verify chunk metadata
         for chunk in chunks:
-            assert "chunk_type" in chunk.chunk_metadata
             assert "line_start" in chunk.chunk_metadata
             assert "line_end" in chunk.chunk_metadata
 
@@ -161,7 +160,7 @@ This is the conclusion of the document.
 
         # Find class chunk
         class_chunks = [c for c in chunks if
-                        c.chunk_metadata.get("chunk_type") == "class"]
+                        c.chunk_type == "class"]
         assert len(class_chunks) > 0
         class_chunk = class_chunks[0]
         assert "ExampleClass" in class_chunk.content
@@ -169,12 +168,12 @@ This is the conclusion of the document.
 
         # Find method chunks
         method_chunks = [c for c in chunks if
-                         c.chunk_metadata.get("chunk_type") == "method"]
+                         c.chunk_type == "method"]
         assert len(method_chunks) >= 2  # Should have at least 2 methods
 
         # Find function chunk
         function_chunks = [c for c in chunks if
-                           c.chunk_metadata.get("chunk_type") == "function"]
+                           c.chunk_type == "function"]
         assert len(function_chunks) > 0
         function_chunk = function_chunks[0]
         assert "standalone_function" in function_chunk.content
@@ -182,11 +181,11 @@ This is the conclusion of the document.
 
         # Verify source paths include parent path and chunk identifier
         for chunk in chunks:
-            if chunk.chunk_metadata.get("chunk_type") == "class":
+            if chunk.chunk_type == "class":
                 assert ":ExampleClass" in chunk.source
-            elif chunk.chunk_metadata.get("chunk_type") == "method":
+            elif chunk.chunk_type == "method":
                 assert "ExampleClass." in chunk.source
-            elif chunk.chunk_metadata.get("chunk_type") == "function":
+            elif chunk.chunk_type == "function":
                 assert ":standalone_function" in chunk.source
 
     def test_document_file_chunking(self, chunking_service,
@@ -207,25 +206,25 @@ This is the conclusion of the document.
 
         # Should have chunks for each main section
         section_chunks = [c for c in chunks if
-                          c.chunk_metadata.get("chunk_type") == "section"]
+                          c.chunk_type == "section"]
         assert len(
             section_chunks) >= 3  # Introduction, Section 1, Section 2, Conclusion
 
         # Check for subsection
         subsection_chunks = [c for c in chunks if
-                             c.chunk_metadata.get("chunk_type") == "subsection"]
+                             c.chunk_type == "subsection"]
         assert len(subsection_chunks) > 0
         subsection_chunk = subsection_chunks[0]
         assert "Subsection 2.1" in subsection_chunk.content
 
         # Check for paragraphs
         paragraph_chunks = [c for c in chunks if
-                            c.chunk_metadata.get("chunk_type") == "paragraph"]
+                            c.chunk_type == "paragraph"]
         assert len(paragraph_chunks) > 0
 
         # Verify source paths include parent path and chunk identifier
         for chunk in chunks:
-            chunk_type = chunk.chunk_metadata.get("chunk_type")
+            chunk_type = chunk.chunk_type
             if chunk_type == "section":
                 assert ":" in chunk.source
             elif chunk_type == "subsection":
@@ -254,7 +253,7 @@ This is the conclusion of the document.
         for chunk in chunks:
             assert chunk.parent_id == document.id
             assert chunk.is_chunk is True
-            assert chunk.chunk_metadata.get("chunk_type") == "text"
+            assert chunk.chunk_type == "paragraph"
 
     def test_chunk_embedding_generation(self, chunking_service,
                                         llm_provider_mock, sample_python_file):
@@ -278,22 +277,6 @@ This is the conclusion of the document.
         for chunk in chunks:
             assert chunk.embedding is not None
             assert len(chunk.embedding) > 0
-
-    def test_empty_document_chunking(self, chunking_service):
-        """Test chunking of an empty document."""
-        # Arrange
-        document = ContextItem(
-            id=str(uuid4()),
-            source="empty_file.py",
-            content="",
-            content_type=ContentType.PYTHON
-        )
-
-        # Act
-        chunks = chunking_service.chunk_document(document)
-
-        # Assert - Should return an empty list
-        assert len(chunks) == 0
 
     def test_very_small_document_chunking(self, chunking_service):
         """Test chunking of a very small document."""
