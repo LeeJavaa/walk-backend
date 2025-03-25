@@ -468,3 +468,139 @@ class TestContextManagementUseCases:
         # Act & Assert - Invalid container ID
         with pytest.raises(KeyError, match="Container not found"):
             use_case.execute("/test_dir", container_id="nonexistent-container")
+
+    def test_add_context_with_container(self, context_repository_mock,
+                                        llm_provider_mock, file_system_mock):
+        """Test adding context with container association."""
+        # Arrange
+        context_repository_mock.add.side_effect = lambda \
+            context_item: context_item
+        container_id = "test-container-id"
+
+        use_case = AddContextUseCase(
+            context_repository=context_repository_mock,
+            llm_provider=llm_provider_mock,
+            file_system=file_system_mock
+        )
+        file_path = "test_file.py"
+
+        # Act
+        result = use_case.execute_from_file_path(file_path,
+                                                 container_id=container_id,
+                                                 is_container_root=True)
+
+        # Assert
+        file_system_mock.file_exists.assert_called_once_with(file_path)
+        file_system_mock.read_file.assert_called_once_with(file_path)
+        llm_provider_mock.generate_embedding.assert_called_once()
+        context_repository_mock.add.assert_called_once()
+        assert result is not None
+        assert result.source == file_path
+        assert result.content_type == ContentType.PYTHON
+        assert result.container_id == container_id
+        assert result.is_container_root is True
+
+    def test_add_content_with_container(self, context_repository_mock,
+                                        llm_provider_mock):
+        """Test adding content with container association."""
+        # Arrange
+        context_repository_mock.add.side_effect = lambda \
+            context_item: context_item
+        container_id = "test-container-id"
+
+        use_case = AddContextUseCase(
+            context_repository=context_repository_mock,
+            llm_provider=llm_provider_mock,
+            file_system=None
+        )
+        source = "test_source"
+        content = "def test_function():\n    return 'Hello, World!'"
+        content_type = ContentType.PYTHON
+
+        # Act
+        result = use_case.execute_from_content(
+            source, content, content_type,
+            container_id=container_id,
+            is_container_root=False
+        )
+
+        # Assert
+        llm_provider_mock.generate_embedding.assert_called_once()
+        context_repository_mock.add.assert_called_once()
+        assert result is not None
+        assert result.source == source
+        assert result.content == content
+        assert result.content_type == content_type
+        assert result.container_id == container_id
+        assert result.is_container_root is False
+
+    def test_list_context_with_container_filter(self, context_repository_mock,
+                                                sample_context_item):
+        """Test listing context items with container filter."""
+        # Arrange
+        use_case = ListContextUseCase(context_repository_mock)
+        container_id = "test-container-id"
+
+        # Create a sample context item with container association
+        container_item = ContextItem(
+            id="container-item-id",
+            source="container_file.py",
+            content="def container_function():\n    pass",
+            content_type=ContentType.PYTHON,
+            metadata={"author": "Test Author"},
+            embedding=[0.1, 0.2, 0.3, 0.4, 0.5],
+            container_id=container_id,
+            is_container_root=True
+        )
+
+        # Mock the repository to return an item when filtered by container
+        context_repository_mock.list.side_effect = lambda filters: (
+            [container_item] if filters and filters.get(
+                "container_id") == container_id else []
+        )
+
+        # Act
+        result = use_case.execute({"container_id": container_id})
+
+        # Assert
+        context_repository_mock.list.assert_called_once_with(
+            {"container_id": container_id})
+        assert len(result) == 1
+        assert result[0].container_id == container_id
+
+        # Test listing from all containers
+        context_repository_mock.list.reset_mock()
+        use_case.execute({})
+        context_repository_mock.list.assert_called_once_with({})
+
+    def test_list_by_container(self, context_repository_mock,
+                               sample_context_item):
+        """Test listing context items from a specific container."""
+        # Arrange
+        use_case = ListContextUseCase(context_repository_mock)
+        container_id = "test-container-id"
+
+        # Create a sample context item with container association
+        container_item = ContextItem(
+            id="container-item-id",
+            source="container_file.py",
+            content="def container_function():\n    pass",
+            content_type=ContentType.PYTHON,
+            metadata={"author": "Test Author"},
+            embedding=[0.1, 0.2, 0.3, 0.4, 0.5],
+            container_id=container_id,
+            is_container_root=True
+        )
+
+        # Mock the repository to return items from a container
+        context_repository_mock.list_by_container.return_value = [
+            container_item]
+
+        # Act
+        result = use_case.execute_list_by_container(container_id)
+
+        # Assert
+        context_repository_mock.list_by_container.assert_called_once_with(
+            container_id)
+        assert len(result) == 1
+        assert result[0].container_id == container_id

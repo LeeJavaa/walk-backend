@@ -32,12 +32,16 @@ class AddContextUseCase:
         self.llm_provider = llm_provider
         self.file_system = file_system
 
-    def execute_from_file_path(self, file_path: str) -> ContextItem:
+    def execute_from_file_path(self, file_path: str,
+                               container_id: Optional[str] = None,
+                               is_container_root: bool = False) -> ContextItem:
         """
         Add a context item from a file path.
 
         Args:
             file_path: Path to the file
+            container_id: Optional ID of the container this item belongs to
+            is_container_root: Whether this is a root item in the container
 
         Returns:
             The added context item
@@ -55,14 +59,22 @@ class AddContextUseCase:
         content = self.file_system.read_file(file_path)
         content_type = ContentType.from_file_extension(file_path)
 
-        return self.execute_from_content(file_path, content, content_type)
+        return self.execute_from_content(
+            file_path,
+            content,
+            content_type,
+            container_id=container_id,
+            is_container_root=is_container_root
+        )
 
     def execute_from_content(
             self,
             source: str,
             content: str,
             content_type: ContentType,
-            metadata: Optional[Dict[str, Any]] = None
+            metadata: Optional[Dict[str, Any]] = None,
+            container_id: Optional[str] = None,
+            is_container_root: bool = False
     ) -> ContextItem:
         """
         Add a context item from its content.
@@ -72,6 +84,8 @@ class AddContextUseCase:
             content: The actual content
             content_type: Type of the content
             metadata: Optional metadata for the context item
+            container_id: Optional ID of the container this item belongs to
+            is_container_root: Whether this is a root item in the container
 
         Returns:
             The added context item
@@ -82,7 +96,9 @@ class AddContextUseCase:
             source=source,
             content=content,
             content_type=content_type,
-            metadata=metadata or {}
+            metadata=metadata or {},
+            container_id=container_id,
+            is_container_root=is_container_root
         )
 
         # Generate embedding
@@ -404,12 +420,24 @@ class ListContextUseCase:
         List context items.
 
         Args:
-            filters: Optional filters for the query
+            filters: Optional filters for the query, can include 'container_id' to filter by container
 
         Returns:
             List of context items matching the filters
         """
         return self.context_repository.list(filters)
+
+    def execute_list_by_container(self, container_id: str) -> List[ContextItem]:
+        """
+        List all context items that belong to a specific container.
+
+        Args:
+            container_id: ID of the container to list items from
+
+        Returns:
+            List of context items in the specified container
+        """
+        return self.context_repository.list_by_container(container_id)
 
 
 class SearchContextUseCase:
