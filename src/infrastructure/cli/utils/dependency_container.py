@@ -10,6 +10,7 @@ from typing import Optional
 from src.domain.entities.pipeline_stage import PipelineStage
 from src.domain.ports.llm_provider import LLMProvider
 from src.domain.ports.directory_processor import DirectoryProcessor
+from src.domain.ports.document_chunker import DocumentChunker
 from src.domain.usecases.context_management import (
     AddContextUseCase,
     AddDirectoryUseCase,
@@ -37,6 +38,7 @@ from src.infrastructure.repositories.mongo_context_repository import \
     MongoContextRepository
 from src.infrastructure.repositories.mongo_pipeline_repository import \
     MongoPipelineRepository
+from src.infrastructure.adapters.chunking_service_adapter import ChunkingServiceAdapter
 from src.infrastructure.adapters.file_system_directory_processor import FileSystemDirectoryProcessor
 from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
 from src.infrastructure.adapters.openai_adapter import OpenAIAdapter
@@ -44,6 +46,7 @@ from src.infrastructure.adapters.file_system_adapter import FileSystemAdapter
 
 from src.application.services.embedding_service import EmbeddingService
 from src.application.services.rag_service import RAGService
+from src.application.services.chunking_service import ChunkingService
 from src.application.pipeline.executor import PipelineExecutor
 from src.application.pipeline.state_manager import StateManager
 from src.application.pipeline.feedback_manager import FeedbackManager
@@ -61,6 +64,8 @@ _pipeline_repository: Optional[MongoPipelineRepository] = None
 # Service instances
 _embedding_service: Optional[EmbeddingService] = None
 _rag_service: Optional[RAGService] = None
+_chunking_service: Optional[ChunkingService] = None
+_document_chunker: Optional[DocumentChunker] = None
 
 logger = logging.getLogger(__name__)
 
@@ -188,6 +193,30 @@ def create_rag_service() -> RAGService:
     return _rag_service
 
 
+def create_chunking_service() -> ChunkingService:
+    """Create or get the chunking service."""
+    global _chunking_service
+
+    if _chunking_service is None:
+        llm_provider = create_openai_adapter()
+        logger.info("Creating chunking service")
+        _chunking_service = ChunkingService(llm_provider=llm_provider)
+
+    return _chunking_service
+
+
+def create_document_chunker() -> DocumentChunker:
+    """Create or get the document chunker."""
+    global _document_chunker
+
+    if _document_chunker is None:
+        chunking_service = create_chunking_service()
+        logger.info("Creating document chunker")
+        _document_chunker = ChunkingServiceAdapter(chunking_service)
+
+    return _document_chunker
+
+
 # Factory functions for use cases
 
 def create_add_context_use_case() -> AddContextUseCase:
@@ -195,11 +224,13 @@ def create_add_context_use_case() -> AddContextUseCase:
     context_repository = create_context_repository()
     openai_adapter = create_openai_adapter()
     file_system_adapter = create_file_system_adapter()
+    document_chunker = create_document_chunker()
 
     return AddContextUseCase(
         context_repository=context_repository,
         llm_provider=openai_adapter,
-        file_system=file_system_adapter
+        file_system=file_system_adapter,
+        document_chunker=document_chunker
     )
 
 

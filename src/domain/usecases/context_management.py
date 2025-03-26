@@ -6,6 +6,7 @@ from uuid import uuid4
 from src.domain.entities.context_item import ContextItem, ContentType
 from src.domain.entities.container import Container
 from src.domain.ports.context_repository import ContextRepository
+from src.domain.ports.document_chunker import DocumentChunker
 from src.domain.ports.llm_provider import LLMProvider
 from src.domain.ports.file_system import FileSystem
 from src.domain.ports.directory_processor import DirectoryProcessor
@@ -18,7 +19,8 @@ class AddContextUseCase:
             self,
             context_repository: ContextRepository,
             llm_provider: LLMProvider,
-            file_system: Optional[FileSystem] = None
+            file_system: Optional[FileSystem] = None,
+            document_chunker: Optional[DocumentChunker] = None
     ):
         """
         Initialize the use case.
@@ -27,14 +29,18 @@ class AddContextUseCase:
             context_repository: Repository for storing context items
             llm_provider: Provider for generating embeddings
             file_system: Optional file system for reading files
+            document_chunker: Optional chunker for breaking down documents
         """
         self.context_repository = context_repository
         self.llm_provider = llm_provider
         self.file_system = file_system
+        self.document_chunker = document_chunker
+        self.logger = logging.getLogger(__name__)
 
     def execute_from_file_path(self, file_path: str,
                                container_id: Optional[str] = None,
-                               is_container_root: bool = False) -> ContextItem:
+                               is_container_root: bool = False,
+                               enable_chunking: bool = True) -> ContextItem:
         """
         Add a context item from a file path.
 
@@ -42,6 +48,7 @@ class AddContextUseCase:
             file_path: Path to the file
             container_id: Optional ID of the container this item belongs to
             is_container_root: Whether this is a root item in the container
+            enable_chunking: Whether to chunk the document if possible
 
         Returns:
             The added context item
@@ -64,7 +71,8 @@ class AddContextUseCase:
             content,
             content_type,
             container_id=container_id,
-            is_container_root=is_container_root
+            is_container_root=is_container_root,
+            enable_chunking = enable_chunking
         )
 
     def execute_from_content(
@@ -74,7 +82,8 @@ class AddContextUseCase:
             content_type: ContentType,
             metadata: Optional[Dict[str, Any]] = None,
             container_id: Optional[str] = None,
-            is_container_root: bool = False
+            is_container_root: bool = False,
+            enable_chunking: bool = True
     ) -> ContextItem:
         """
         Add a context item from its content.
@@ -86,6 +95,7 @@ class AddContextUseCase:
             metadata: Optional metadata for the context item
             container_id: Optional ID of the container this item belongs to
             is_container_root: Whether this is a root item in the container
+            enable_chunking: Whether to chunk the document if possible
 
         Returns:
             The added context item
@@ -106,7 +116,30 @@ class AddContextUseCase:
         context_item.embedding = embedding
 
         # Save to repository
-        return self.context_repository.add(context_item)
+        saved_item = self.context_repository.add(context_item)
+
+        # Perform chunking if relevant and enabled
+        chunks_count = 0
+        if self.document_chunker and enable_chunking and is_container_root:
+            try:
+                # Chunk the document
+                chunks = self.document_chunker.chunk_document(saved_item)
+
+                # Save all chunks to the repository
+                for chunk in chunks:
+                    self.context_repository.add(chunk)
+
+                chunks_count = len(chunks)
+                self.logger.info(f"Added {chunks_count} chunks for {source}")
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to chunk document {source}: {str(e)}")
+                # Continue execution even if chunking fails
+
+        # Attach chunks count as metadata for the caller
+        saved_item.metadata["chunks_count"] = chunks_count
+
+        return saved_item
 
 
 class AddDirectoryUseCase:

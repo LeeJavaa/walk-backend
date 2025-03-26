@@ -37,7 +37,9 @@ def context_group():
               help="ID of the container to add the file to")
 @click.option("--root", "-r", is_flag=True, default=False,
               help="Mark this file as a container root item")
-def add_context(file: str, container: Optional[str] = None, root: bool = False):
+@click.option("--chunk/--no-chunk", default=True,
+              help="Enable/disable automatic document chunking")
+def add_context(file: str, container: Optional[str] = None, root: bool = False, chunk: bool = True):
     """
     Add a file to the context repository.
 
@@ -60,6 +62,12 @@ def add_context(file: str, container: Optional[str] = None, root: bool = False):
 
         if container:
             result_data["container_id"] = container
+
+        # Add chunking information if any chunks were created
+        chunks_count = context_item.metadata.get("chunks_count", 0)
+        if chunks_count > 0:
+            result_data[
+                "chunks"] = f"{chunks_count} chunks created (use 'context list --parent-id {context_item.id}' to view)"
 
         click.echo(format_success(
             f"Successfully added context item from {file}",
@@ -239,8 +247,14 @@ def list_containers(container_type: Optional[str] = None):
               help="Filter by content type (e.g., python, markdown)")
 @click.option("--container", "-c",
               help="Filter by container ID")
+@click.option("--parent-id", "-p",
+              help="List chunks for a specific parent document")
+@click.option("--chunks-only", is_flag=True, default=False,
+              help="Show only chunked items")
 def list_contexts(content_type: Optional[str] = None,
-                  container: Optional[str] = None):
+                  container: Optional[str] = None,
+                  parent_id: Optional[str] = None,
+                  chunks_only: bool = False):
     """
     List context items in the repository.
 
@@ -249,14 +263,28 @@ def list_contexts(content_type: Optional[str] = None,
     try:
         use_case = create_list_context_use_case()
 
+        # Build filters
+        filters = {}
+        if content_type:
+            filters["content_type"] = content_type
+
+        if parent_id:
+            # List chunks for a specific parent
+            filters["parent_id"] = parent_id
+        elif chunks_only:
+            # List only chunks
+            filters["is_chunk"] = True
+
         if container:
             # If container ID is provided, list items by container
-            items = use_case.execute_list_by_container(container)
+            if filters:
+                # Mix of container and other filters
+                items = use_case.execute({**filters, "container_id": container})
+            else:
+                # Just container filter
+                items = use_case.execute_list_by_container(container)
         else:
-            # Otherwise, use regular filtering
-            filters = {}
-            if content_type:
-                filters["content_type"] = content_type
+            # Regular filtering without container
             items = use_case.execute(filters)
 
         if not items:
