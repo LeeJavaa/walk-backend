@@ -9,12 +9,18 @@ from typing import Optional
 
 from src.domain.entities.pipeline_stage import PipelineStage
 from src.domain.ports.llm_provider import LLMProvider
+from src.domain.ports.directory_processor import DirectoryProcessor
 from src.domain.usecases.context_management import (
     AddContextUseCase,
+    AddDirectoryUseCase,
     RemoveContextUseCase,
     UpdateContextUseCase,
     ListContextUseCase,
     SearchContextUseCase
+)
+from src.domain.usecases.container_management import (
+    CreateContainerUseCase,
+    ListContainersUseCase,
 )
 from src.domain.usecases.pipeline_management import (
     CreatePipelineUseCase,
@@ -31,6 +37,7 @@ from src.infrastructure.repositories.mongo_context_repository import \
     MongoContextRepository
 from src.infrastructure.repositories.mongo_pipeline_repository import \
     MongoPipelineRepository
+from src.infrastructure.adapters.file_system_directory_processor import FileSystemDirectoryProcessor
 from src.infrastructure.adapters.mongodb_connection import MongoDBConnection
 from src.infrastructure.adapters.openai_adapter import OpenAIAdapter
 from src.infrastructure.adapters.file_system_adapter import FileSystemAdapter
@@ -229,6 +236,46 @@ def create_search_context_use_case() -> SearchContextUseCase:
     return SearchContextUseCase(
         context_repository=context_repository,
         llm_provider=openai_adapter
+    )
+
+
+def create_add_directory_use_case() -> AddDirectoryUseCase:
+    """Create an AddDirectoryUseCase instance."""
+    context_repository = create_context_repository()
+    llm_provider = create_openai_adapter()
+    directory_processor = create_directory_processor()
+
+    return AddDirectoryUseCase(
+        context_repository=context_repository,
+        llm_provider=llm_provider,
+        directory_processor=directory_processor
+    )
+
+
+def create_create_container_use_case() -> CreateContainerUseCase:
+    """Create a CreateContainerUseCase instance."""
+    context_repository = create_context_repository()
+
+    return CreateContainerUseCase(
+        context_repository=context_repository
+    )
+
+
+def create_list_containers_use_case() -> ListContainersUseCase:
+    """Create a ListContainersUseCase instance."""
+    context_repository = create_context_repository()
+
+    return ListContainersUseCase(
+        context_repository=context_repository
+    )
+
+
+def create_directory_processor() -> DirectoryProcessor:
+    """Create a DirectoryProcessor instance."""
+    file_system = create_file_system_adapter()
+
+    return FileSystemDirectoryProcessor(
+        file_system=file_system
     )
 
 

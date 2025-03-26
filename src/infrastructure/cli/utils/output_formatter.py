@@ -394,3 +394,80 @@ def format_rag_response(response: str) -> str:
     
     # Combine all parts with proper spacing
     return f"{header}\n{separator}\n{formatted_response}\n{separator}"
+
+def format_container(container) -> str:
+    """
+    Format a container for display.
+
+    Args:
+        container: Container to format
+
+    Returns:
+        Formatted container string
+    """
+    return (
+        f"ID: {click.style(container.id, fg='blue')}\n"
+        f"Name: {container.name}\n"
+        f"Title: {container.title}\n"
+        f"Type: {container.container_type}\n"
+        f"Source Path: {container.source_path}\n"
+        f"Description: {container.description if container.description else 'None'}\n"
+        f"Priority: {container.priority}\n"
+        f"Size: {container.size} items\n"
+        f"Created: {container.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+    )
+
+
+def format_container_list(containers) -> str:
+    """
+    Format a list of containers for display.
+
+    Args:
+        containers: List of containers to format
+
+    Returns:
+        Formatted container list string
+    """
+    if not containers:
+        return "No containers found."
+
+    # Create a table-like output
+    headers = ["ID", "Name", "Title", "Type", "Priority", "Size", "Created"]
+    rows = []
+
+    for container in containers:
+        rows.append([
+            container.id,
+            container.name,
+            container.title,
+            container.container_type.value if hasattr(container.container_type, 'value') else str(container.container_type),
+            str(container.priority),
+            str(getattr(container, 'size', 0)),
+            container.created_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(container.created_at, 'strftime') else str(container.created_at)
+        ])
+
+    # Calculate column widths
+    col_widths = [
+        max(len(headers[i]), max(len(row[i]) for row in rows))
+        for i in range(len(headers))
+    ]
+
+    # Format the headers
+    header_row = " | ".join(
+        click.style(headers[i].ljust(col_widths[i]), bold=True)
+        for i in range(len(headers))
+    )
+
+    # Format the separator
+    separator = "-+-".join("-" * width for width in col_widths)
+
+    # Format the data rows
+    data_rows = []
+    for row in rows:
+        data_rows.append(" | ".join(
+            row[i].ljust(col_widths[i])
+            for i in range(len(row))
+        ))
+
+    # Combine everything
+    return "\n".join([header_row, separator] + data_rows)
