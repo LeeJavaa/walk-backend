@@ -149,7 +149,8 @@ class AddDirectoryUseCase:
             self,
             context_repository: ContextRepository,
             llm_provider: LLMProvider,
-            directory_processor: DirectoryProcessor
+            directory_processor: DirectoryProcessor,
+            document_chunker: Optional[DocumentChunker] = None
     ):
         """
         Initialize the use case.
@@ -158,10 +159,12 @@ class AddDirectoryUseCase:
             context_repository: Repository for storing context items
             llm_provider: Provider for generating embeddings
             directory_processor: Processor for directory traversal and file handling
+            document_chunker: Optional chunker for breaking down documents
         """
         self.context_repository = context_repository
         self.llm_provider = llm_provider
         self.directory_processor = directory_processor
+        self.document_chunker = document_chunker
         self.logger = logging.getLogger(__name__)
 
     def execute(
@@ -173,7 +176,8 @@ class AddDirectoryUseCase:
             container_title: Optional[str] = None,
             container_type: str = "code",
             container_description: str = "",
-            container_priority: int = 5
+            container_priority: int = 5,
+            enable_chunking: bool = True
     ) -> Dict[str, Any]:
         """
         Add an entire directory to the context system.
@@ -187,12 +191,14 @@ class AddDirectoryUseCase:
             container_type: Type of container (default: "code")
             container_description: Description of the container
             container_priority: Priority level for the container (1-10)
+            enable_chunking: Whether to chunk the documents if possible
 
         Returns:
             Dictionary with processing results:
             - container: The container where files were added
             - context_items: List of added context items
             - total_files: Number of files processed
+            - total_chunks: Number of chunks created
 
         Raises:
             ValueError: If the directory path is invalid
@@ -220,6 +226,8 @@ class AddDirectoryUseCase:
 
         # Create context items from the processed files
         context_items = []
+        total_chunks = 0
+
         for file_info in processing_result["processed_files"]:
             file_path = file_info["path"]
             content = file_info["content"]
@@ -246,19 +254,47 @@ class AddDirectoryUseCase:
                 self.logger.warning(
                     f"Failed to generate embedding for {file_path}: {str(e)}")
 
-            # Add to repository
+            # Add the parent context item to repository
             added_item = self.context_repository.add(context_item)
             context_items.append(added_item)
 
+            # Perform chunking if enabled
+            file_chunks_count = 0
+            if self.document_chunker and enable_chunking:
+                try:
+                    # Chunk the document
+                    chunks = self.document_chunker.chunk_document(added_item)
+
+                    # Save all chunks to the repository
+                    for chunk in chunks:
+                        self.context_repository.add(chunk)
+
+                    file_chunks_count = len(chunks)
+                    total_chunks += file_chunks_count
+
+                    # Add chunks count to item metadata
+                    added_item.metadata["chunks_count"] = file_chunks_count
+                    # Update the item in the repository with the new metadata
+                    self.context_repository.update(added_item)
+
+                    self.logger.info(
+                        f"Added {file_chunks_count} chunks for {file_path}")
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to chunk document {file_path}: {str(e)}")
+                    # Continue processing other files even if chunking fails for one
+
         self.logger.info(
-            f"Added {len(context_items)} files from {directory_path} to container {container.id}")
+            f"Added {len(context_items)} files and {total_chunks} chunks from {directory_path} to container {container.id}")
 
         # Return processing results
         return {
             "container": container,
             "context_items": context_items,
-            "total_files": len(context_items)
+            "total_files": len(context_items),
+            "total_chunks": total_chunks
         }
+
 
     def _get_or_create_container(
             self,

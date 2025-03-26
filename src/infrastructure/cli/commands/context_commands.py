@@ -97,6 +97,8 @@ def add_context(file: str, container: Optional[str] = None, root: bool = False, 
               help="Description of the container")
 @click.option("--priority", type=int, default=5,
               help="Priority level for the container (1-10, default: 5)")
+@click.option("--chunk/--no-chunk", default=True,
+              help="Enable/disable automatic document chunking")
 def add_directory(
         directory: str,
         depth: int = 10,
@@ -105,7 +107,8 @@ def add_directory(
         title: Optional[str] = None,
         container_type: str = "code",
         description: str = "",
-        priority: int = 5
+        priority: int = 5,
+        chunk: bool = True
 ):
     """
     Add an entire directory to the context system.
@@ -130,21 +133,32 @@ def add_directory(
             container_title=title,
             container_type=container_type,
             container_description=description,
-            container_priority=priority
+            container_priority=priority,
+            enable_chunking=chunk
         )
 
         # Format the output
         container_info = result["container"]
         total_files = result["total_files"]
+        total_chunks = result.get("total_chunks", 0)
+
+        output_data = {
+            "container_id": container_info.id,
+            "container_name": container_info.name,
+            "container_title": container_info.title,
+            "files_added": f"{total_files} files"
+        }
+
+        # Add chunking information if chunks were created
+        if total_chunks > 0:
+            output_data["chunks_created"] = f"{total_chunks} chunks"
+            output_data[
+                "usage_tip"] = "Use 'context list --container {} --chunks-only' to view chunks".format(
+                container_info.id)
 
         click.echo(format_success(
             f"Successfully added directory {directory}",
-            {
-                "container_id": container_info.id,
-                "container_name": container_info.name,
-                "container_title": container_info.title,
-                "files_added": f"{total_files} files"
-            }
+            output_data
         ))
 
     except Exception as e:

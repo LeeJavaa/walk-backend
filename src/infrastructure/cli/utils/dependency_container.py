@@ -275,11 +275,13 @@ def create_add_directory_use_case() -> AddDirectoryUseCase:
     context_repository = create_context_repository()
     llm_provider = create_openai_adapter()
     directory_processor = create_directory_processor()
+    document_chunker = create_document_chunker()
 
     return AddDirectoryUseCase(
         context_repository=context_repository,
         llm_provider=llm_provider,
-        directory_processor=directory_processor
+        directory_processor=directory_processor,
+        document_chunker=document_chunker
     )
 
 
