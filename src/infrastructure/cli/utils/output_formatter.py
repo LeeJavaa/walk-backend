@@ -70,12 +70,14 @@ def format_context_item(item: ContextItem) -> str:
     )
 
 
-def format_context_list(items: List[ContextItem]) -> str:
+def format_context_list(items: List[ContextItem],
+                        resolve_containers: bool = False) -> str:
     """
     Format a list of context items for display.
 
     Args:
         items: List of context items to format
+        resolve_containers: Whether to show container names instead of IDs
 
     Returns:
         Formatted list of context items
@@ -84,20 +86,36 @@ def format_context_list(items: List[ContextItem]) -> str:
         return "No context items found."
 
     # Create a table-like output
-    headers = ["ID", "Source", "Type", "Created"]
+    headers = ["ID", "Source", "Type", "Container", "Is Chunk", "Created"]
     rows = []
 
     for item in items:
+        # Format container information
+        if item.container_id:
+            if resolve_containers and "container_name" in item.metadata:
+                container_info = item.metadata["container_name"]
+            else:
+                container_info = item.container_id
+        else:
+            container_info = "None"
+
+        # Format chunk information
+        is_chunk = "Yes" if item.is_chunk else "No"
+        if item.is_chunk and item.chunk_type:
+            is_chunk = f"Yes ({item.chunk_type})"
+
         rows.append([
             item.id,
             item.source,
-            item.content_type,
+            str(item.content_type),
+            container_info,
+            is_chunk,
             item.created_at.strftime("%Y-%m-%d %H:%M:%S")
         ])
 
     # Calculate column widths
     col_widths = [
-        max(len(headers[i]), max(len(row[i]) for row in rows))
+        max(len(headers[i]), max(len(str(row[i])) for row in rows))
         for i in range(len(headers))
     ]
 
@@ -114,7 +132,7 @@ def format_context_list(items: List[ContextItem]) -> str:
     data_rows = []
     for row in rows:
         data_rows.append(" | ".join(
-            row[i].ljust(col_widths[i])
+            str(row[i]).ljust(col_widths[i])
             for i in range(len(row))
         ))
 

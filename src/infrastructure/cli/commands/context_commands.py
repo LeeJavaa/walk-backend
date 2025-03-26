@@ -260,22 +260,42 @@ def list_containers(container_type: Optional[str] = None):
 @click.option("--content-type", "-t",
               help="Filter by content type (e.g., python, markdown)")
 @click.option("--container", "-c",
-              help="Filter by container ID")
+              help="Filter by container ID or name")
 @click.option("--parent-id", "-p",
               help="List chunks for a specific parent document")
 @click.option("--chunks-only", is_flag=True, default=False,
               help="Show only chunked items")
+@click.option("--resolve-containers", "-r", is_flag=True, default=False,
+              help="Show container names instead of IDs")
 def list_contexts(content_type: Optional[str] = None,
                   container: Optional[str] = None,
                   parent_id: Optional[str] = None,
-                  chunks_only: bool = False):
+                  chunks_only: bool = False,
+                  resolve_containers: bool = False):
     """
     List context items in the repository.
 
-    Displays all context items or filters by content type or container.
+    Displays all context items or filters by content type, container,
+    or parent document for chunks.
     """
     try:
         use_case = create_list_context_use_case()
+        list_containers_use_case = create_list_containers_use_case()
+
+        # Resolve container name to ID if needed
+        container_id = container
+        if container and not container.startswith("container-"):
+            # This might be a container name, try to find it
+            containers = list_containers_use_case.execute({"name": container})
+            if containers:
+                container_id = containers[0].id
+            else:
+                # Try a case-insensitive match on title
+                all_containers = list_containers_use_case.execute()
+                for c in all_containers:
+                    if c.title.lower() == container.lower() or c.name.lower() == container.lower():
+                        container_id = c.id
+                        break
 
         # Build filters
         filters = {}
@@ -289,14 +309,15 @@ def list_contexts(content_type: Optional[str] = None,
             # List only chunks
             filters["is_chunk"] = True
 
-        if container:
+        if container_id:
             # If container ID is provided, list items by container
             if filters:
                 # Mix of container and other filters
-                items = use_case.execute({**filters, "container_id": container})
+                items = use_case.execute(
+                    {**filters, "container_id": container_id})
             else:
                 # Just container filter
-                items = use_case.execute_list_by_container(container)
+                items = use_case.execute_list_by_container(container_id)
         else:
             # Regular filtering without container
             items = use_case.execute(filters)
@@ -304,7 +325,20 @@ def list_contexts(content_type: Optional[str] = None,
         if not items:
             click.echo("No context items found.")
         else:
-            click.echo(format_context_list(items))
+            # If resolving container names, get all containers
+            container_names = {}
+            if resolve_containers:
+                all_containers = list_containers_use_case.execute()
+                for c in all_containers:
+                    container_names[c.id] = c.name
+
+                # Replace container IDs with names in the output
+                for item in items:
+                    if item.container_id and item.container_id in container_names:
+                        item.metadata["container_name"] = container_names[
+                            item.container_id]
+
+            click.echo(format_context_list(items, resolve_containers))
     except Exception as e:
         click.echo(format_error(f"Error listing context items: {str(e)}"))
         logger.exception("Error in list_contexts command")
